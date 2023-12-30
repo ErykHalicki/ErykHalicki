@@ -2,9 +2,9 @@
 My name is Eryk Halicki, and I'm a current student at the University of British Columbia, Double Majoring in Computer Science and Psychology. 
 I'm currently working on Autonomous Underwater Vehicles as the software lead of UBCO's Marine Design team.
 ## 🧑‍🚀 Favorite Projects 🧑‍🚀
-* carnosaMNIST - Convolutional Neural Network used to recognize handwritten digits, trained using neural evolution methods. Written from scratch in c++
-* AI_Snake - Dijkstra's Pathfinding implemented into classic snake game
-* 
+* carnosaMNIST, a neural network used to recognize handwritten digits, trained using neural evolution methods. Written from scratch in C++
+* AI_Snake, Dijkstra's Pathfinding implemented into the classic snake game
+* BARRY_Drone, a WIP autonomous drone project
 
 ## ✨ Current Project ✨
 Robosub 2024 AUV (<a href="https://github.com/marinedesign/software-team"> repo link </a>)
