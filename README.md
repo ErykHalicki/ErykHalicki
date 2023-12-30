@@ -1,4 +1,4 @@
-### Hi there 👋
+# Eryk Halicki 🤖🌲
 [![GitHub Trends SVG](https://api.githubtrends.io/user/svg/Stargor14/langs)](https://githubtrends.io)
 <!--
 **Stargor14/Stargor14** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
