@@ -1,10 +1,16 @@
-# 🌱 Hey there 🌱
+## 🌱 Hey there 🌱
 My name is Eryk Halicki, and I'm a current student at the University of British Columbia, Double Majoring in Computer Science and Psychology. 
 I'm currently working on Autonomous Underwater Vehicles as the software lead of UBCO's Marine Design team.
 
-[![GitHub Trends SVG](https://api.githubtrends.io/user/svg/Stargor14/langs)](https://githubtrends.io)
 ## ✨ Projects ✨
 Robosub 2024 AUV <a href="https://github.com/marinedesign/software-team"> (repo link) </a>
+
+<a href="https://githubtrends.io">
+  <img align="center" src="https://api.githubtrends.io/user/svg/Stargor14/repos?time_range=all_time&include_private=True&loc_metric=changed&group=private" />
+</a>
+<a href="https://githubtrends.io">
+  <img align="center" src="https://api.githubtrends.io/user/svg/Stargor14/langs?time_range=all_time&include_private=True&loc_metric=changed" />
+</a>
 
 <!--
 **Stargor14/Stargor14** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
