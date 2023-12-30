@@ -16,8 +16,6 @@ Robosub 2024 AUV (<a href="https://github.com/marinedesign/software-team"> repo 
   <img align="center" src="https://api.githubtrends.io/user/svg/Stargor14/langs?time_range=all_time&include_private=True&loc_metric=changed" />
 </a>
 
-## 
-
 <!--
 **Stargor14/Stargor14** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
 
