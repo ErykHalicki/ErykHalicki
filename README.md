@@ -5,6 +5,7 @@ I'm currently working on Autonomous Underwater Vehicles as the software lead of 
 * carnosaMNIST, a CNN used to classify handwritten digits, trained using neural evolution methods. Written from scratch in C++
 * AI_Snake, Dijkstra's Pathfinding implemented into the classic snake game
 * BARRY_Drone, a WIP autonomous drone project
+* [eryk.ca][http://eryk.ca/], my personal website
 
 ## ✨ Current Project ✨
 Robosub 2024 AUV (<a href="https://github.com/marinedesign/software-team"> repo link </a>)
