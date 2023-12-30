@@ -3,6 +3,8 @@ My name is Eryk Halicki, and I'm a current student at the University of British 
 I'm currently working on Autonomous Underwater Vehicles as the software lead of UBCO's Marine Design team.
 
 [![GitHub Trends SVG](https://api.githubtrends.io/user/svg/Stargor14/langs)](https://githubtrends.io)
+## ✨ Projects ✨
+MarineDesign [https://github.com/marinedesign/software-team]
 <!--
 **Stargor14/Stargor14** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
 
