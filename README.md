@@ -4,7 +4,7 @@ I'm currently working on Autonomous Underwater Vehicles as the software lead of 
 
 [![GitHub Trends SVG](https://api.githubtrends.io/user/svg/Stargor14/langs)](https://githubtrends.io)
 ## ✨ Projects ✨
-MarineDesign ![https://github.com/marinedesign/software-team]
+MarineDesign ![https://github.com/marinedesign/software-team](https://github.com/marinedesign/software-team)
 <!--
 **Stargor14/Stargor14** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
 
