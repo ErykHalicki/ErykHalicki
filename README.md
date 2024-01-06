@@ -9,7 +9,7 @@ I'm currently working on Autonomous Underwater Vehicles as the software lead of 
 * <a href="https://github.com/Stargor14/barryDrone">BARRY_Drone</a>, a WIP autonomous drone project
 * <a href="http://eryk.ca">eryk.ca</a>, my personal website 
 
-
+<!--
 <a href="https://githubtrends.io">
   <img align="center" src="https://api.githubtrends.io/user/svg/Stargor14/repos?time_range=all_time&include_private=True&loc_metric=changed&group=private" />
 </a>
