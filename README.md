@@ -1,6 +1,8 @@
 ## 🌱 Hey there 🌱
 I'm Eryk, a current student at the University of British Columbia, Double Majoring in Computer Science and Psychology. 
 I'm currently working on Autonomous Underwater Vehicles as the software lead of UBCO's Marine Design team.
+
+I love robotics and hope to pursue undergraduate robotics research in the coming years.
 ## 🧑‍🚀 Favorite Projects 🧑‍🚀
 
 * <a href="https://github.com/Okangan-Marine-Design/Cascade">UBCO Marine Robotics</a>, AUV design competition, personally focusing on ROS2 architecture, SLAM and Navigation
