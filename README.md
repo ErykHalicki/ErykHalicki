@@ -3,6 +3,7 @@ I'm Eryk, a current student at the University of British Columbia, Double Majori
 I'm currently working on Autonomous Underwater Vehicles as the software lead of UBCO's Marine Design team.
 
 I love robotics and hope to pursue undergraduate robotics research in the coming years.
+
 Maybe one day I can even contribute to making a real-life walle
 ## 🧑‍🚀 Favorite Projects 🧑‍🚀
 
