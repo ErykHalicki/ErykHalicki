@@ -4,7 +4,7 @@ I'm currently working on Autonomous Underwater Vehicles as the software lead of 
 
 I love robotics and hope to pursue undergraduate robotics research in the coming years.
 
-Maybe one day I can even contribute to making a real-life walle
+Feel free to check out my [youtube](https://www.youtube.com/channel/UCDCceLLbuibSepU2ZzXlwDQ) to see some demos of my projects
 ## 🧑‍🚀 Favorite Projects 🧑‍🚀
 
 * <a href="https://github.com/Okangan-Marine-Design/Cascade">UBC Okanagan Marine Robotics</a>, AUV design competition, personally focusing on ROS2 architecture, SLAM and Navigation
