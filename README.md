@@ -1,5 +1,5 @@
-## Whats up
-Robots are cool fr
+## hey
+i'm eryk and i program robots
 
 [video demos](https://www.youtube.com/channel/UCDCceLLbuibSepU2ZzXlwDQ)
 <!--
