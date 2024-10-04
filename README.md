@@ -1,8 +1,7 @@
-## 🌱 Hey there 🌱
-I'm Eryk, a current student at the University of British Columbia, Double Majoring in Computer Science and Psychology. 
-I'm currently working on Autonomous Underwater Vehicles as the software lead of UBCO's Marine Robotics team.
+## Whats up
+Robots are cool fr
 
-Feel free to check out my [youtube](https://www.youtube.com/channel/UCDCceLLbuibSepU2ZzXlwDQ) to see some demos of my projects
+[video demos](https://www.youtube.com/channel/UCDCceLLbuibSepU2ZzXlwDQ)
 <!--
 <a href="https://githubtrends.io">
   <img align="center" src="https://api.githubtrends.io/user/svg/Stargor14/repos?time_range=all_time&include_private=True&loc_metric=changed&group=private" />
