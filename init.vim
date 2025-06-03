@@ -1,29 +1,15 @@
-let g:python3_host_prog = '/usr/bin/python3'
-set nocompatible            " disable compatibility to old-time vi
-set showmatch               " show matching
-set ignorecase              " case insensitive
-set mouse=v                 " middle-click paste with
-set hlsearch                " highlight search
-set incsearch               " incremental search
-set tabstop=4               " number of columns occupied by a tab
-set softtabstop=4           " see multiple spaces as tabstops so <BS> does the right thing
-set expandtab               " converts tabs to white space
-set shiftwidth=4            " width for autoindents
-set autoindent              " indent a new line the same amount as the line just typed
-set number                  " add line numbers
-set wildmode=longest,list   " get bash-like tab completions
-filetype plugin indent on   "allow auto-indenting depending on file type
-syntax on                   " syntax highlighting
-set mouse=a                 " enable mouse click
-set clipboard=unnamedplus   " using system clipboard
-set nowrap
-filetype plugin on
-set ttyfast
 call plug#begin()
-Plug 'tpope/vim-fugitive'
 Plug 'scrooloose/nerdtree'
-Plug 'ncm2/ncm2'
-Plug 'SirVer/ultisnips'
-Plug 'honza/vim-snippets'
 call plug#end()
 autocmd VimEnter * NERDTree | wincmd p
+autocmd BufEnter * if tabpagenr('$') == 1 && winnr('$') == 1 && exists('b:NERDTree') && b:NERDTree.isTabTree() | quit | endif
+let g:NERDTreeDirArrowExpandable = '▸'
+let g:NERDTreeDirArrowCollapsible = '▾'
+set mouse=a
+set clipboard=unnamedplus
+set clipboard+=unnamed
+set tabstop=4
+set shiftwidth=4
+set expandtab
+set number
+set nohlsearch
