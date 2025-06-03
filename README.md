@@ -1,5 +1,5 @@
 ## hey🪐
-i'm eryk and i program robots
+i'm eryk and i make robots
 
 [video demos](https://www.youtube.com/channel/UCDCceLLbuibSepU2ZzXlwDQ)
 <!--
