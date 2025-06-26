@@ -14,3 +14,4 @@ set shiftwidth=4
 set expandtab
 set number
 set nohlsearch
+:tnoremap <Esc> <C-\><C-n>
