@@ -1,5 +1,6 @@
 call plug#begin()
 Plug 'scrooloose/nerdtree'
+Plug 'gcmt/taboo.vim'
 call plug#end()
 autocmd VimEnter * NERDTree | wincmd p
 autocmd TabNew * NERDTree | wincmd p
