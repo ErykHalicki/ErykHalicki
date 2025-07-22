@@ -59,10 +59,10 @@ require("cyberdream").setup({
     italic_comments = true,
 
     -- Replace all fillchars with ' ' for the ultimate clean look
-    hide_fillchars = true,
+    hide_fillchars = false,
 
     -- Apply a modern borderless look to pickers like Telescope, Snacks Picker & Fzf-Lua
-    borderless_pickers = true,
+    borderless_pickers = false,
 
     -- Set terminal colors used in `:terminal`
     terminal_colors = true,
@@ -124,7 +124,7 @@ null_ls.setup({
     }),
   },
   on_attach = function(client, bufnr)
-    if client.supports_method("textDocument/formatting") then
+    if client:supports_method("textDocument/formatting") then
       vim.api.nvim_create_autocmd("BufWritePre", {
         buffer = bufnr,
         callback = function()
@@ -184,3 +184,10 @@ vim.api.nvim_create_user_command("Start", function()
   vim.cmd("TabooRename notes")
 end, {})
 
+--close everything command
+vim.api.nvim_create_user_command('Nuke', function()
+  vim.cmd('wa')
+  vim.cmd([[silent! bufdo if &buftype == 'terminal' | bd! | endif]])
+  vim.cmd('NERDTreeClose')
+  vim.cmd('xa')
+end, {})
