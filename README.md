@@ -1,4 +1,3 @@
-## hey🪐
 i'm eryk and i work on robotics
 
 [video demos](https://www.youtube.com/channel/UCDCceLLbuibSepU2ZzXlwDQ)
