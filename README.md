@@ -1,4 +1,4 @@
-i'm eryk and i work on robotics
+i love robots
 
 [video demos](https://www.youtube.com/channel/UCDCceLLbuibSepU2ZzXlwDQ)
 <!--
