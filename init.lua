@@ -75,8 +75,8 @@ require("cyberdream").setup({
     },
 
 colors = {
-    bg = "#000000",             
-    bg_alt = "#000000",
+    bg = "#171421",             
+    bg_alt = "#171421",
     bg_highlight = "#586e75",
     bg_solid = "#000000",
     fg = "#e6ffe6",
