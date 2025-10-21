@@ -12,6 +12,8 @@ vim.cmd [[
   Plug 'nvimtools/none-ls.nvim'
   Plug 'nvim-lua/plenary.nvim'
   Plug 'scottmckendry/cyberdream.nvim'
+  Plug 'ray-x/lsp_signature.nvim'
+  Plug 'glepnir/lspsaga.nvim'
   call plug#end()
 ]]
 
@@ -166,6 +168,35 @@ cmp.setup({
     { name = 'path' },
   }
 })
+
+-- LSP setup
+local lspconfig = require('lspconfig')
+
+-- Python LSP (pyright)
+lspconfig.pyright.setup({
+  settings = {
+    python = {
+      analysis = {
+        typeCheckingMode = "off",  -- or "off" to disable completely
+        diagnosticSeverityOverrides = {
+          reportGeneralTypeIssues = "none",
+        },
+      },
+    },
+  },
+  on_attach = function(client, bufnr)
+    -- Signature help while typing
+    require('lsp_signature').on_attach({
+      bind = true,
+      floating_window = true,
+      hint_enable = false,
+    }, bufnr)
+  end,
+  capabilities = require('cmp_nvim_lsp').default_capabilities(),
+})
+
+vim.keymap.set('n', 'K', vim.lsp.buf.hover, {})
+vim.keymap.set('n', 'gd', vim.lsp.buf.definition, {})
 
 -- CUSTOM COMMANDS
 -- Claude
