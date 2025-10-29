@@ -54,7 +54,7 @@ vim.o.termguicolors = true
 vim.cmd("syntax enable")
 vim.cmd("filetype plugin indent on")
 vim.opt.mouse = 'a'
-vim.opt.clipboard:append { 'unnamed', 'unnamedplus' }
+vim.opt.clipboard:append { 'unnamedplus' }
 vim.opt.tabstop = 4
 vim.opt.shiftwidth = 4
 vim.opt.expandtab = true
