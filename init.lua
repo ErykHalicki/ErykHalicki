@@ -223,9 +223,16 @@ vim.api.nvim_create_user_command('Nuke', function()
   vim.cmd('xa')
 end, {})
 
-let data_dir = has('nvim') ? stdpath('data') . '/site' : '~/.vim'
-if empty(glob(data_dir . '/autoload/plug.vim'))
-  silent execute '!curl -fLo '.data_dir.'/autoload/plug.vim --create-dirs  https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim'
-  autocmd VimEnter * PlugInstall --sync | source $MYVIMRC
-endif
-  
+local data_dir = vim.fn.stdpath('data') .. '/site'
+local plug_path = data_dir .. '/autoload/plug.vim'
+
+if vim.fn.empty(vim.fn.glob(plug_path)) > 0 then
+  vim.fn.system({
+    'curl',
+    '-fLo',
+    plug_path,
+    '--create-dirs',
+    'https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim'
+  })
+  vim.cmd('autocmd VimEnter * PlugInstall --sync | source $MYVIMRC')
+end
