@@ -9,7 +9,6 @@ if vim.fn.empty(vim.fn.glob(plug_path)) > 0 then
     '--create-dirs',
     'https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim'
   })
-  vim.cmd('autocmd VimEnter * PlugInstall --sync | source $MYVIMRC')
 end
 
 vim.cmd [[
