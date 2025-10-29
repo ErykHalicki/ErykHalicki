@@ -1,3 +1,17 @@
+local data_dir = vim.fn.stdpath('data') .. '/site'
+local plug_path = data_dir .. '/autoload/plug.vim'
+
+if vim.fn.empty(vim.fn.glob(plug_path)) > 0 then
+  vim.fn.system({
+    'curl',
+    '-fLo',
+    plug_path,
+    '--create-dirs',
+    'https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim'
+  })
+  vim.cmd('autocmd VimEnter * PlugInstall --sync | source $MYVIMRC')
+end
+
 vim.cmd [[
   call plug#begin()
   Plug 'scrooloose/nerdtree'
@@ -222,17 +236,3 @@ vim.api.nvim_create_user_command('Nuke', function()
   vim.cmd('NERDTreeClose')
   vim.cmd('xa')
 end, {})
-
-local data_dir = vim.fn.stdpath('data') .. '/site'
-local plug_path = data_dir .. '/autoload/plug.vim'
-
-if vim.fn.empty(vim.fn.glob(plug_path)) > 0 then
-  vim.fn.system({
-    'curl',
-    '-fLo',
-    plug_path,
-    '--create-dirs',
-    'https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim'
-  })
-  vim.cmd('autocmd VimEnter * PlugInstall --sync | source $MYVIMRC')
-end
