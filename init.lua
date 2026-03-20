@@ -1,16 +1,3 @@
-local data_dir = vim.fn.stdpath('data') .. '/site'
-local plug_path = data_dir .. '/autoload/plug.vim'
-
-if vim.fn.empty(vim.fn.glob(plug_path)) > 0 then
-  vim.fn.system({
-    'curl',
-    '-fLo',
-    plug_path,
-    '--create-dirs',
-    'https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim'
-  })
-end
-
 vim.cmd [[
   call plug#begin()
   Plug 'scrooloose/nerdtree'
@@ -27,8 +14,11 @@ vim.cmd [[
   Plug 'scottmckendry/cyberdream.nvim'
   Plug 'ray-x/lsp_signature.nvim'
   Plug 'glepnir/lspsaga.nvim'
+  Plug 'echasnovski/mini.icons'
+  Plug 'MeanderingProgrammer/render-markdown.nvim'
   call plug#end()
 ]]
+
 
 vim.api.nvim_create_autocmd("VimEnter", {
   pattern = "*",
@@ -54,7 +44,7 @@ vim.o.termguicolors = true
 vim.cmd("syntax enable")
 vim.cmd("filetype plugin indent on")
 vim.opt.mouse = 'a'
-vim.opt.clipboard:append { 'unnamedplus' }
+vim.opt.clipboard:append { 'unnamed', 'unnamedplus' }
 vim.opt.tabstop = 4
 vim.opt.shiftwidth = 4
 vim.opt.expandtab = true
@@ -62,7 +52,7 @@ vim.opt.number = true
 vim.opt.hlsearch = false
 
 -- TERMINAL MODE ESC MAPPING
-vim.keymap.set("t", "<Esc>", [[<C-\><C-n>]])
+vim.keymap.set("t", "<S-Esc>", [[<C-\><C-n>]])
 
 require("cyberdream").setup({
     transparent = false,
@@ -90,8 +80,8 @@ require("cyberdream").setup({
     },
 
 colors = {
-    bg = "#171421",             
-    bg_alt = "#171421",
+    bg = "#000000",             
+    bg_alt = "#000000",
     bg_highlight = "#586e75",
     bg_solid = "#000000",
     fg = "#e6ffe6",
@@ -120,7 +110,7 @@ vim.api.nvim_set_hl(0, "String", { fg = "#EFA110" })
 -- syntax highlighting
 
 require'nvim-treesitter.configs'.setup {
-  ensure_installed = { "cpp", "python" },
+  ensure_installed = { "cpp", "python", "markdown", "markdown_inline" },
   highlight = {
     enable = true,
     additional_vim_regex_highlighting = false,
@@ -149,6 +139,9 @@ null_ls.setup({
     end
   end,
 })
+
+require('render-markdown').setup({})
+require('render-markdown').enable()
 
 -- autocomplete
 
@@ -210,6 +203,10 @@ lspconfig.pyright.setup({
 
 vim.keymap.set('n', 'K', vim.lsp.buf.hover, {})
 vim.keymap.set('n', 'gd', vim.lsp.buf.definition, {})
+
+for i = 1, 9 do
+  vim.keymap.set('n', tostring(i), i .. 'gt', {})
+end
 
 -- CUSTOM COMMANDS
 -- Claude
