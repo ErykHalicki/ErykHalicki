@@ -16,6 +16,7 @@ vim.cmd [[
   Plug 'glepnir/lspsaga.nvim'
   Plug 'echasnovski/mini.icons'
   Plug 'MeanderingProgrammer/render-markdown.nvim'
+  Plug 'lervag/vimtex'
   call plug#end()
 ]]
 
@@ -203,12 +204,21 @@ lspconfig.pyright.setup({
 
 vim.keymap.set('n', 'K', vim.lsp.buf.hover, {})
 vim.keymap.set('n', 'gd', vim.lsp.buf.definition, {})
+vim.keymap.set('n', 'vc', '<cmd>VimtexCompile<CR>', {})
 
 for i = 1, 9 do
   vim.keymap.set('n', tostring(i), i .. 'gt', {})
 end
 
 -- CUSTOM COMMANDS
+vim.api.nvim_create_user_command('OpenPDF', function()
+  local url = 'file://' .. vim.fn.expand('%:p:r') .. '.pdf'
+  local b64 = vim.fn.system("printf '%s' " .. vim.fn.shellescape(url) .. " | base64 | tr -d '\\n'")
+  io.write("\027]1337;OpenURL=:" .. b64 .. "\027\\")
+  io.flush()
+end, {})
+
+
 -- Claude
 vim.api.nvim_create_user_command("Claude", function()
   vim.cmd("terminal")
