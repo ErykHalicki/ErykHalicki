@@ -210,6 +210,14 @@ for i = 1, 9 do
   vim.keymap.set('n', tostring(i), i .. 'gt', {})
 end
 
+-- vimtex
+vim.g.vimtex_view_method = 'general'
+vim.g.vimtex_view_general_viewer = 'true'
+vim.api.nvim_create_autocmd('User', {
+  pattern = 'VimtexEventView',
+  callback = function() vim.cmd('OpenPDF') end,
+})
+
 -- CUSTOM COMMANDS
 vim.api.nvim_create_user_command('OpenPDF', function()
   local url = 'file://' .. vim.fn.expand('%:p:r') .. '.pdf'
