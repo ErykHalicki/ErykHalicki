@@ -215,16 +215,17 @@ vim.g.vimtex_view_method = 'general'
 vim.g.vimtex_view_general_viewer = 'true'
 vim.api.nvim_create_autocmd('User', {
   pattern = 'VimtexEventView',
-  callback = function() vim.cmd('OpenPDF') end,
+  callback = function() vim.cmd('Open ' .. vim.fn.expand('%:p:r') .. '.pdf') end,
 })
 
 -- CUSTOM COMMANDS
-vim.api.nvim_create_user_command('OpenPDF', function()
-  local url = 'file://' .. vim.fn.expand('%:p:r') .. '.pdf'
+vim.api.nvim_create_user_command('Open', function(opts)
+  local path = opts.args ~= '' and opts.args or vim.fn.expand('%:p')
+  local url = 'file://' .. vim.fn.fnamemodify(path, ':p')
   local b64 = vim.fn.system("printf '%s' " .. vim.fn.shellescape(url) .. " | base64 | tr -d '\\n'")
   io.write("\027]1337;OpenURL=:" .. b64 .. "\027\\")
   io.flush()
-end, {})
+end, { nargs = '?', complete = 'file' })
 
 
 -- Claude
