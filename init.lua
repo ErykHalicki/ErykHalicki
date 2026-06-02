@@ -17,6 +17,8 @@ vim.cmd [[
   Plug 'echasnovski/mini.icons'
   Plug 'MeanderingProgrammer/render-markdown.nvim'
   Plug 'lervag/vimtex'
+  Plug 'nvim-lualine/lualine.nvim'
+  Plug 'justinhj/battery.nvim'
   call plug#end()
 ]]
 
@@ -51,9 +53,21 @@ vim.opt.shiftwidth = 4
 vim.opt.expandtab = true
 vim.opt.number = true
 vim.opt.hlsearch = false
+vim.opt.showmode = false
+vim.opt.cmdheight = 0
 
 -- TERMINAL MODE ESC MAPPING
 vim.keymap.set("t", "<S-Esc>", [[<C-\><C-n>]])
+
+-- SPLIT NAVIGATION: Shift+Arrow moves focus between windows
+vim.keymap.set("n", "<S-Up>",    "<C-w>k", {})
+vim.keymap.set("n", "<S-Down>",  "<C-w>j", {})
+vim.keymap.set("n", "<S-Left>",  "<C-w>h", {})
+vim.keymap.set("n", "<S-Right>", "<C-w>l", {})
+vim.keymap.set("t", "<S-Up>",    [[<C-\><C-n><C-w>k]], {})
+vim.keymap.set("t", "<S-Down>",  [[<C-\><C-n><C-w>j]], {})
+vim.keymap.set("t", "<S-Left>",  [[<C-\><C-n><C-w>h]], {})
+vim.keymap.set("t", "<S-Right>", [[<C-\><C-n><C-w>l]], {})
 
 require("cyberdream").setup({
     transparent = false,
@@ -144,6 +158,26 @@ null_ls.setup({
 require('render-markdown').setup({})
 require('render-markdown').enable()
 
+-- statusline
+
+require('battery').setup({})
+require('lualine').setup({
+  options = {
+    theme = 'cyberdream',
+    globalstatus = true,
+    section_separators = '',
+    component_separators = '',
+  },
+  sections = {
+    lualine_a = { 'mode' },
+    lualine_b = { 'branch', 'diff' },
+    lualine_c = { 'filename' },
+    lualine_x = { 'filetype' },
+    lualine_y = { { require('battery').get_status_line } },
+    lualine_z = { { function() return os.date('%H:%M') end } },
+  },
+})
+
 -- autocomplete
 
 local cmp = require('cmp')
@@ -220,11 +254,15 @@ vim.api.nvim_create_autocmd('User', {
 
 -- CUSTOM COMMANDS
 vim.api.nvim_create_user_command('Open', function(opts)
-  local path = opts.args ~= '' and opts.args or vim.fn.expand('%:p')
-  local url = 'file://' .. vim.fn.fnamemodify(path, ':p')
-  local b64 = vim.fn.system("printf '%s' " .. vim.fn.shellescape(url) .. " | base64 | tr -d '\\n'")
-  io.write("\027]1337;OpenURL=:" .. b64 .. "\027\\")
-  io.flush()
+  local path = vim.fn.fnamemodify(opts.args ~= '' and opts.args or vim.fn.expand('%:p'), ':p')
+  if vim.fn.has('mac') == 1 then
+    local url = 'file://' .. path
+    local b64 = vim.fn.system("printf '%s' " .. vim.fn.shellescape(url) .. " | base64 | tr -d '\\n'")
+    io.write("\027]1337;OpenURL=:" .. b64 .. "\027\\")
+    io.flush()
+  else
+    vim.fn.jobstart({ 'xdg-open', path }, { detach = true })
+  end
 end, { nargs = '?', complete = 'file' })
 
 
@@ -237,11 +275,31 @@ end, {})
 
 -- startup command
 vim.api.nvim_create_user_command("Start", function()
-  vim.cmd("TabooRename Editor")
-  vim.cmd("tabnew")
-  vim.cmd("Claude")
-  vim.cmd("tabnew")
-  vim.cmd("TabooRename notes")
+  -- Tab 1: editor with NERDTree
+  vim.cmd("silent! TabooRename Editor")
+
+  -- Tab 2: empty terminal "TR", no NERDTree
+  vim.cmd("silent! tabnew")
+  vim.cmd("silent! NERDTreeClose")
+  vim.cmd("silent! terminal")
+  vim.cmd("silent! TabooRename TR")
+
+  -- Tab 3: claude, no NERDTree
+  vim.cmd("silent! tabnew")
+  vim.cmd("silent! NERDTreeClose")
+  vim.cmd("silent! terminal")
+  vim.cmd("silent! TabooRename Claude")
+  vim.fn.chansend(vim.b.terminal_job_id, "claude\n")
+
+  -- Tab 4: lazygit, no NERDTree
+  vim.cmd("silent! tabnew")
+  vim.cmd("silent! NERDTreeClose")
+  vim.cmd("silent! terminal")
+  vim.cmd("silent! TabooRename lazygit")
+  vim.fn.chansend(vim.b.terminal_job_id, "lazygit\n")
+
+  vim.cmd("silent! tabfirst")
+  vim.cmd("redraw")
 end, {})
 
 --close everything command
@@ -251,3 +309,7 @@ vim.api.nvim_create_user_command('Nuke', function()
   vim.cmd('NERDTreeClose')
   vim.cmd('xa')
 end, {})
+
+-- lowercase aliases for :Start and :Nuke
+vim.cmd([[cnoreabbrev <expr> start (getcmdtype() == ':' && getcmdline() ==# 'start') ? 'Start' : 'start']])
+vim.cmd([[cnoreabbrev <expr> nuke  (getcmdtype() == ':' && getcmdline() ==# 'nuke')  ? 'Nuke'  : 'nuke']])
