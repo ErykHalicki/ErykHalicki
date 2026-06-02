@@ -19,6 +19,9 @@ vim.cmd [[
   Plug 'lervag/vimtex'
   Plug 'nvim-lualine/lualine.nvim'
   Plug 'justinhj/battery.nvim'
+  Plug 'MunifTanjim/nui.nvim'
+  Plug 'rcarriga/nvim-notify'
+  Plug 'folke/noice.nvim'
   call plug#end()
 ]]
 
@@ -175,6 +178,26 @@ require('lualine').setup({
     lualine_x = { 'filetype' },
     lualine_y = { { require('battery').get_status_line } },
     lualine_z = { { function() return os.date('%H:%M') end } },
+  },
+})
+
+-- cmdline / messages in floating UI so lualine sits flush at the bottom
+
+require('notify').setup({ background_colour = "#000000" })
+require('noice').setup({
+  cmdline = {
+    view = "cmdline_popup",
+  },
+  lsp = {
+    override = {
+      ["vim.lsp.util.convert_input_to_markdown_lines"] = true,
+      ["vim.lsp.util.stylize_markdown"] = true,
+      ["cmp.entry.get_documentation"] = true,
+    },
+  },
+  presets = {
+    bottom_search = false,
+    long_message_to_split = true,
   },
 })
 
