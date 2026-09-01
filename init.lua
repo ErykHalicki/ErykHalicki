@@ -16,6 +16,8 @@ vim.cmd [[
   Plug 'glepnir/lspsaga.nvim'
   Plug 'echasnovski/mini.icons'
   Plug 'MeanderingProgrammer/render-markdown.nvim'
+  Plug 'HakonHarnes/img-clip.nvim'
+  Plug '~/notes/nvim'
   Plug 'lervag/vimtex'
   Plug 'nvim-lualine/lualine.nvim'
   Plug 'justinhj/battery.nvim'
@@ -160,6 +162,24 @@ null_ls.setup({
 
 require('render-markdown').setup({})
 require('render-markdown').enable()
+
+-- notes vault: Obsidian-style image paste + `notes` CLI wrapper
+
+require('img-clip').setup({
+  default = {
+    dir_path = "media",
+    relative_to_current_file = true,
+    use_absolute_path = false,
+    file_name = "%Y-%m-%d-%H-%M-%S",
+    prompt_for_file_name = false,
+  },
+})
+vim.keymap.set("n", "<leader>v", "<cmd>PasteImage<CR>", { desc = "paste image" })
+
+do
+  local ok, notes = pcall(require, "notes")   -- only if ~/notes is cloned
+  if ok then notes.setup({ cli = "notes", prefix = "<leader>n" }) end
+end
 
 -- statusline
 
