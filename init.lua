@@ -62,7 +62,7 @@ vim.opt.showmode = false
 vim.opt.cmdheight = 0
 
 -- TERMINAL MODE ESC MAPPING
-vim.keymap.set("t", "<S-Esc>", [[<C-\><C-n>]])
+vim.keymap.set("t", "<Esc><Esc>", [[<C-\><C-n>]])
 
 -- SPLIT NAVIGATION: Shift+Arrow moves focus between windows
 vim.keymap.set("n", "<S-Up>",    "<C-w>k", {})
