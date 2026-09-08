@@ -1,6 +1,8 @@
 # useful_aliases.bash
 # Portable shell aliases/functions for Ubuntu or macOS.
-# Source it from ~/.zshrc or ~/.bashrc:  [ -f ~/useful_aliases.bash ] && . ~/useful_aliases.bash
+# This repo is expected to live at ~/Documents/ErykHalicki on every machine.
+# Source it from ~/.zshrc or ~/.bashrc:
+#   [ -f ~/Documents/ErykHalicki/useful_aliases.bash ] && . ~/Documents/ErykHalicki/useful_aliases.bash
 
 # --- navigation ---
 alias s=source
@@ -22,4 +24,4 @@ nvim() {
 alias work="nvim -c Start"
 
 # --- neofetch with custom ascii art (falls back to plain neofetch) ---
-alias neofetch='command neofetch $([ -f ~/.config/nvim/ErykHalicki/walle-ascii-art.txt ] && echo "--ascii ~/.config/nvim/ErykHalicki/walle-ascii-art.txt --ascii_colors 1 4 3 2 5 6")'
+alias neofetch='command neofetch $([ -f ~/Documents/ErykHalicki/walle-ascii-art.txt ] && echo "--ascii ~/Documents/ErykHalicki/walle-ascii-art.txt --ascii_colors 1 4 3 2 5 6")'
