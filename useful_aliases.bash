@@ -12,9 +12,10 @@ alias proj="cd ~/Documents/projects/current"
 alias projects="cd ~/Documents/projects/current"
 
 # --- ssh (set host/user via env vars, no secrets committed) ---
-# export PC_HOST=user@host   (optionally use ~/.ssh/config + key auth instead)
-alias pc='ssh "${PC_HOST:-eryk@100.102.68.50}"'
-alias zima='ssh "${ZIMA_HOST:-zima@zima-brain.local}"; printf "\e[?1000l\e[?1006l\e[?1015l"'
+# export PC_HOST=user@host   (or use ~/.ssh/config + key auth instead)
+# export ZIMA_HOST=user@host
+alias pc='ssh "$PC_HOST"'
+alias zima='ssh "$ZIMA_HOST"; printf "\e[?1000l\e[?1006l\e[?1015l"'
 
 # --- editor ---
 alias nvim-clean="command nvim"

@@ -22,8 +22,7 @@ Then `source ~/.zshrc` (or open a new terminal).
 
 ### Optional env overrides
 
-The ssh aliases default to known hosts but can be overridden without editing
-the file:
+The `pc` / `zima` ssh aliases need these set (no defaults committed):
 
 ```bash
 export PC_HOST=user@host
