@@ -8,8 +8,8 @@
 alias s=source
 alias school="cd ~/Documents/School/"
 alias honours="cd ~/Documents/School/UBC/year4/bachelor-thesis"
-alias proj="cd ~/Documents/projects/current"
-alias projects="cd ~/Documents/projects/current"
+alias proj="cd ~/Documents/projects"
+alias projects="cd ~/Documents/projects"
 
 # --- ssh (set host/user via env vars, no secrets committed) ---
 # export PC_HOST=user@host   (or use ~/.ssh/config + key auth instead)
