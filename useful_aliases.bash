@@ -11,11 +11,9 @@ alias honours="cd ~/Documents/School/UBC/year4/bachelor-thesis"
 alias proj="cd ~/Documents/projects"
 alias projects="cd ~/Documents/projects"
 
-# --- ssh (set host/user via env vars, no secrets committed) ---
-# export PC_HOST=user@host   (or use ~/.ssh/config + key auth instead)
-# export ZIMA_HOST=user@host
-alias pc='ssh "$PC_HOST"'
-alias zima='ssh "$ZIMA_HOST"; printf "\e[?1000l\e[?1006l\e[?1015l"'
+# --- ssh (define `pc` / `zima` Host blocks in ~/.ssh/config; see setup.md) ---
+alias pc='ssh pc'
+alias zima='ssh zima; printf "\e[?1000l\e[?1006l\e[?1015l"'
 
 # --- editor ---
 alias nvim-clean="command nvim"

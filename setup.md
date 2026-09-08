@@ -20,16 +20,49 @@ Add this to `~/.zshrc` (macOS) or `~/.bashrc` (Ubuntu):
 
 Then `source ~/.zshrc` (or open a new terminal).
 
-### Optional env overrides
+## 3. SSH hosts
 
-The `pc` / `zima` ssh aliases need these set (no defaults committed):
+The `pc` / `zima` aliases run `ssh pc` / `ssh zima`, so those names need
+`Host` blocks in `~/.ssh/config` (nothing host-specific is committed):
 
-```bash
-export PC_HOST=user@host
-export ZIMA_HOST=user@host
+```
+Host zima
+    HostName zima-brain.local
+    User zima
+    IdentityFile ~/.ssh/id_ed25519
+
+Host pc
+    HostName <pc-hostname-or-ip>
+    User <user>
+    IdentityFile ~/.ssh/id_ed25519
 ```
 
-## 3. Neovim config
+Then `chmod 600 ~/.ssh/config`.
+
+Set up key auth so the aliases don't prompt for a password:
+
+```bash
+# generate a key if this machine has none
+ls ~/.ssh/id_ed25519 || ssh-keygen -t ed25519
+
+# trust the host key, then install your public key
+ssh-keyscan -H zima-brain.local >> ~/.ssh/known_hosts
+ssh-copy-id zima
+```
+
+If `ssh-copy-id` fails with `ssh_askpass: ... No such file or directory`,
+unset the GUI askpass and force a terminal password prompt:
+
+```bash
+cat ~/.ssh/id_ed25519.pub | SSH_ASKPASS= DISPLAY= \
+  ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no zima \
+  "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys"
+```
+
+Verify: `ssh -o BatchMode=yes zima hostname` should print the hostname
+without prompting.
+
+## 4. Neovim config
 
 ```bash
 mkdir -p ~/.config/nvim
@@ -37,7 +70,7 @@ ln -s ~/Documents/ErykHalicki/init.lua ~/.config/nvim/init.lua
 # or use init.vim instead
 ```
 
-## 4. Tools referenced by the aliases
+## 5. Tools referenced by the aliases
 
 Install as needed:
 
