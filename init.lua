@@ -61,6 +61,12 @@ vim.opt.hlsearch = false
 vim.opt.showmode = false
 vim.opt.cmdheight = 0
 
+-- Let a bell from a :terminal job through to the outer terminal, while keeping
+-- every editing bell (end of buffer, bad command, completion, ...) silent.
+-- Neovim defaults to belloff=all, which swallows terminal bells too; this is
+-- that default list minus "term" and "shell".
+vim.opt.belloff = "backspace,cursor,complete,copy,ctrlg,error,esc,hangul,insertmode,lang,mess,showmatch,operator,register,spell,wildmode"
+
 -- TERMINAL MODE ESC MAPPING
 vim.keymap.set("t", "<Esc><Esc>", [[<C-\><C-n>]])
 
@@ -128,6 +134,41 @@ vim.api.nvim_set_hl(0, "Constant", { fg = "#EFA110" })
 vim.api.nvim_set_hl(0, "String", { fg = "#EFA110" })
 
 -- syntax highlighting
+
+-- Compat shim: nvim-treesitter's `master` branch is frozen for Neovim <=0.11
+-- and its query_predicates.lua (set-lang-from-info-string!, downcase!, etc.)
+-- assumes match[id] is a single TSNode. Neovim 0.12 dropped the old `all=false`
+-- opt that used to collapse captures for it, so match[id] is now always a
+-- TSNode[] list, which crashes those handlers (e.g. on markdown code fences).
+-- Unwrap list captures back to a single node before handlers run.
+do
+  local tsquery = vim.treesitter.query
+  local function unwrap_match(match)
+    return setmetatable({}, {
+      __index = function(_, id)
+        local v = match[id]
+        if type(v) == "table" then
+          return v[#v]
+        end
+        return v
+      end,
+    })
+  end
+
+  local add_predicate = tsquery.add_predicate
+  tsquery.add_predicate = function(name, handler, opts)
+    add_predicate(name, function(match, ...)
+      return handler(unwrap_match(match), ...)
+    end, opts)
+  end
+
+  local add_directive = tsquery.add_directive
+  tsquery.add_directive = function(name, handler, opts)
+    add_directive(name, function(match, ...)
+      return handler(unwrap_match(match), ...)
+    end, opts)
+  end
+end
 
 require'nvim-treesitter.configs'.setup {
   ensure_installed = { "cpp", "python", "markdown", "markdown_inline" },
