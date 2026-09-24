@@ -56,17 +56,47 @@ local function is_binary_file(path)
   return head:find("\0", 1, true) ~= nil
 end
 
+-- :Tree trees are position=current, which neo-tree opens files into in place;
+-- send their files to the last editor window instead, like the sidebar does
+local function open_node(state)
+  local node = state.tree:get_node()
+  if node.type ~= "file" or state.current_position ~= "current" then
+    require("neo-tree.sources.filesystem.commands").open(state)
+    return
+  end
+  local winid, is_neo_tree = require("neo-tree.utils").get_appropriate_window(state)
+  if is_neo_tree then
+    vim.cmd("botright vnew")
+  else
+    vim.api.nvim_set_current_win(winid)
+  end
+  vim.cmd.edit(vim.fn.fnameescape(node:get_id()))
+end
+
+local function go_to_dir(state)
+  vim.ui.input({ prompt = "Go to folder: ", default = state.path .. "/", completion = "dir" }, function(input)
+    if not input or input == "" then return end
+    local path = vim.fn.fnamemodify(vim.fn.expand(input), ":p"):gsub("/$", "")
+    if vim.fn.isdirectory(path) == 0 then
+      vim.notify("Not a folder: " .. path, vim.log.levels.WARN)
+      return
+    end
+    require("neo-tree.sources.filesystem").navigate(state, path)
+  end)
+end
+
 require('neo-tree').setup({
   close_if_last_window = true,
+  open_files_do_not_replace_types = { "terminal", "Trouble", "qf", "edgy", "notestree" },
   window = {
     mappings = {
       -- NERDTree-style `m` menu: press m, a popup lists the actions, press a letter to pick
       ["m"] = { "show_help", nowait = false, config = { title = "Menu", prefix_key = "m" } },
-      ["ma"] = { "add", desc = "add file (end with / for a folder)" },
-      ["mA"] = { "add_directory", desc = "add folder" },
-      ["mm"] = { "move", desc = "move" },
+      ["ma"] = { "add", desc = "add file (end with / for a folder)", config = { show_path = "absolute" } },
+      ["mA"] = { "add_directory", desc = "add folder", config = { show_path = "absolute" } },
+      ["mm"] = { "move", desc = "move", config = { show_path = "absolute" } },
       ["mr"] = { "rename", desc = "rename" },
-      ["mc"] = { "copy", desc = "copy" },
+      ["mc"] = { "copy", desc = "copy", config = { show_path = "absolute" } },
       ["md"] = { "delete", desc = "delete" },
       ["my"] = { "copy_to_clipboard", desc = "yank (copy) to clipboard" },
       ["mx"] = { "cut_to_clipboard", desc = "cut to clipboard" },
@@ -88,21 +118,24 @@ require('neo-tree').setup({
     },
   },
   filesystem = {
+    -- refresh the tree when files change outside nvim (terminal, lazygit, claude)
+    use_libuv_file_watcher = true,
     window = {
       mappings = {
         ["u"] = "navigate_up",
         ["mh"] = { "toggle_hidden", desc = "show/hide hidden files" },
+        ["mg"] = { go_to_dir, desc = "go to folder (type a path)" },
         ["b"] = "none",
+        ["<cr>"] = { open_node, desc = "open" },
         -- double-clicking the root folder goes up to its parent
         ["<2-LeftMouse>"] = { function(state)
-          local fs_commands = require("neo-tree.sources.filesystem.commands")
           local node = state.tree:get_node()
           if node:get_depth() == 1 then
-            fs_commands.navigate_up(state)
+            require("neo-tree.sources.filesystem.commands").navigate_up(state)
           elseif node.type == "file" and is_binary_file(node:get_id()) then
             vim.cmd({ cmd = "Open", args = { node:get_id() } })
           else
-            fs_commands.open(state)
+            open_node(state)
           end
         end, desc = "open (binaries via :Open), or go up if on the root folder" },
       },
@@ -115,6 +148,20 @@ require('neo-tree').setup({
     },
   },
 })
+
+-- neo-tree takes typed paths literally, so ~/foo would create a folder named "~"; expand it first
+do
+  local inputs = require("neo-tree.ui.inputs")
+  local neo_input = inputs.input
+  inputs.input = function(prompt, default_value, callback, ...)
+    return neo_input(prompt, default_value, function(value)
+      if type(value) == "string" and (value == "~" or value:sub(1, 2) == "~/") then
+        value = vim.env.HOME .. value:sub(2)
+      end
+      callback(value)
+    end, ...)
+  end
+end
 
 -- :Tree [dir] stacks another independent tree under the lowest one in the sidebar
 vim.api.nvim_create_user_command("Tree", function(opts)
