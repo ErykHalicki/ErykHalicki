@@ -19,6 +19,7 @@ vim.cmd [[
   Plug 'HakonHarnes/img-clip.nvim'
   Plug '~/notes/nvim'
   Plug 'lervag/vimtex'
+  Plug 'micangl/cmp-vimtex'
   Plug 'nvim-lualine/lualine.nvim'
   Plug 'justinhj/battery.nvim'
   Plug 'MunifTanjim/nui.nvim'
@@ -444,6 +445,16 @@ cmp.setup({
     { name = 'buffer' },
     { name = 'path' },
   }
+})
+
+require('cmp_vimtex').setup({})
+
+cmp.setup.filetype('tex', {
+  sources = {
+    { name = 'vimtex' },
+    { name = 'buffer' },
+    { name = 'path' },
+  },
 })
 
 -- LSP setup
