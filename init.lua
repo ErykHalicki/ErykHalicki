@@ -39,6 +39,23 @@ local function copy_node_path(state)
   vim.notify("Copied " .. path)
 end
 
+local binary_exts = {
+  pdf = true, png = true, jpg = true, jpeg = true, gif = true, webp = true, avif = true,
+  heic = true, bmp = true, tiff = true, ico = true, mp4 = true, mov = true, mkv = true,
+  webm = true, mp3 = true, wav = true, flac = true, m4a = true, zip = true, docx = true,
+  xlsx = true, pptx = true, key = true, pages = true, numbers = true,
+}
+
+-- known binary extension, or a NUL byte in the first 8KB (the same sniff git uses)
+local function is_binary_file(path)
+  if binary_exts[vim.fn.fnamemodify(path, ":e"):lower()] then return true end
+  local f = io.open(path, "rb")
+  if not f then return false end
+  local head = f:read(8000) or ""
+  f:close()
+  return head:find("\0", 1, true) ~= nil
+end
+
 require('neo-tree').setup({
   close_if_last_window = true,
   window = {
@@ -74,16 +91,20 @@ require('neo-tree').setup({
     window = {
       mappings = {
         ["u"] = "navigate_up",
+        ["mh"] = { "toggle_hidden", desc = "show/hide hidden files" },
         ["b"] = "none",
         -- double-clicking the root folder goes up to its parent
         ["<2-LeftMouse>"] = { function(state)
           local fs_commands = require("neo-tree.sources.filesystem.commands")
-          if state.tree:get_node():get_depth() == 1 then
+          local node = state.tree:get_node()
+          if node:get_depth() == 1 then
             fs_commands.navigate_up(state)
+          elseif node.type == "file" and is_binary_file(node:get_id()) then
+            vim.cmd({ cmd = "Open", args = { node:get_id() } })
           else
             fs_commands.open(state)
           end
-        end, desc = "open, or go up if on the root folder" },
+        end, desc = "open (binaries via :Open), or go up if on the root folder" },
       },
     },
   },
@@ -423,7 +444,7 @@ vim.api.nvim_create_user_command('Open', function(opts)
     io.write("\027]1337;OpenURL=:" .. b64 .. "\027\\")
     io.flush()
   else
-    vim.fn.jobstart({ 'xdg-open', path }, { detach = true })
+    vim.ui.open(path)
   end
 end, { nargs = '?', complete = 'file' })
 
