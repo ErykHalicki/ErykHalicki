@@ -1,6 +1,6 @@
 vim.cmd [[
   call plug#begin()
-  Plug 'scrooloose/nerdtree'
+  Plug 'nvim-neo-tree/neo-tree.nvim', { 'branch': 'v3.x' }
   Plug 'gcmt/taboo.vim'
   Plug 'hrsh7th/nvim-cmp'
   Plug 'hrsh7th/cmp-buffer'
@@ -28,23 +28,28 @@ vim.cmd [[
 ]]
 
 
+require('mini.icons').setup()
+MiniIcons.mock_nvim_web_devicons()
+
+require('neo-tree').setup({
+  close_if_last_window = true,
+  default_component_configs = {
+    indent = {
+      expander_collapsed = '▸',
+      expander_expanded = '▾',
+    },
+  },
+})
+
 vim.api.nvim_create_autocmd("VimEnter", {
   pattern = "*",
-  command = "NERDTree | wincmd p"
+  command = "Neotree show"
 })
 
 vim.api.nvim_create_autocmd("TabNew", {
   pattern = "*",
-  command = "NERDTree | wincmd p"
+  command = "Neotree show"
 })
-
-vim.api.nvim_create_autocmd("BufEnter", {
-  pattern = "*",
-  command = [[if tabpagenr('$') == 1 && winnr('$') == 1 && exists('b:NERDTree') && b:NERDTree.isTabTree() | quit | endif]]
-})
-
-vim.g.NERDTreeDirArrowExpandable = '▸'
-vim.g.NERDTreeDirArrowCollapsible = '▾'
 
 -- GENERAL EDITOR SETTINGS
 
@@ -359,25 +364,25 @@ end, {})
 
 -- startup command
 vim.api.nvim_create_user_command("Start", function()
-  -- Tab 1: editor with NERDTree
+  -- Tab 1: editor with Neo-tree
   vim.cmd("silent! TabooRename Editor")
 
-  -- Tab 2: empty terminal "TR", no NERDTree
+  -- Tab 2: empty terminal "TR", no Neo-tree
   vim.cmd("silent! tabnew")
-  vim.cmd("silent! NERDTreeClose")
+  vim.cmd("silent! Neotree close")
   vim.cmd("silent! terminal")
   vim.cmd("silent! TabooRename TR")
 
-  -- Tab 3: claude, no NERDTree
+  -- Tab 3: claude, no Neo-tree
   vim.cmd("silent! tabnew")
-  vim.cmd("silent! NERDTreeClose")
+  vim.cmd("silent! Neotree close")
   vim.cmd("silent! terminal")
   vim.cmd("silent! TabooRename Claude")
   vim.fn.chansend(vim.b.terminal_job_id, "claude\n")
 
-  -- Tab 4: lazygit, no NERDTree
+  -- Tab 4: lazygit, no Neo-tree
   vim.cmd("silent! tabnew")
-  vim.cmd("silent! NERDTreeClose")
+  vim.cmd("silent! Neotree close")
   vim.cmd("silent! terminal")
   vim.cmd("silent! TabooRename lazygit")
   vim.fn.chansend(vim.b.terminal_job_id, "lazygit\n")
@@ -385,8 +390,8 @@ vim.api.nvim_create_user_command("Start", function()
   vim.cmd("silent! tabfirst")
   vim.cmd("redraw")
 
-  -- `-c Start` runs before VimEnter, so NERDTree isn't open on tab 1 yet.
-  -- Defer the notes panel until the event loop so it docks under NERDTree.
+  -- `-c Start` runs before VimEnter, so Neo-tree isn't open on tab 1 yet.
+  -- Defer the notes panel until the event loop so it docks under Neo-tree.
   vim.schedule(function()
     vim.cmd("silent! tabfirst")
     pcall(vim.cmd, "NotesTree")
@@ -398,7 +403,7 @@ end, {})
 vim.api.nvim_create_user_command('Nuke', function()
   vim.cmd('wa')
   vim.cmd([[silent! bufdo if &buftype == 'terminal' | bd! | endif]])
-  vim.cmd('NERDTreeClose')
+  vim.cmd('silent! Neotree close')
   vim.cmd('xa')
 end, {})
 
