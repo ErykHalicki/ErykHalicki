@@ -41,6 +41,25 @@ require('neo-tree').setup({
   },
 })
 
+-- :Tree [dir] stacks another independent tree under the lowest one in the sidebar
+vim.api.nvim_create_user_command("Tree", function(opts)
+  local dir = vim.fn.fnamemodify(vim.fn.expand(opts.args ~= "" and opts.args or vim.fn.getcwd()), ":p")
+  local last
+  for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if vim.bo[vim.api.nvim_win_get_buf(w)].filetype == "neo-tree" then last = w end
+  end
+  if not last then
+    vim.cmd("Neotree show dir=" .. vim.fn.fnameescape(dir))
+    return
+  end
+  vim.api.nvim_set_current_win(last)
+  -- neo-tree pins its window height, so unpin it or the split steals lines from the notes panel
+  vim.wo[last].winfixheight = false
+  vim.cmd(("belowright %dnew"):format(math.max(math.floor(vim.api.nvim_win_get_height(last) / 2), 1)))
+  vim.wo[last].winfixheight = true
+  vim.cmd("Neotree position=current dir=" .. vim.fn.fnameescape(dir))
+end, { nargs = "?", complete = "dir" })
+
 vim.api.nvim_create_autocmd("VimEnter", {
   pattern = "*",
   command = "Neotree show"
