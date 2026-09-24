@@ -384,6 +384,14 @@ vim.api.nvim_create_user_command("Start", function()
 
   vim.cmd("silent! tabfirst")
   vim.cmd("redraw")
+
+  -- `-c Start` runs before VimEnter, so NERDTree isn't open on tab 1 yet.
+  -- Defer the notes panel until the event loop so it docks under NERDTree.
+  vim.schedule(function()
+    vim.cmd("silent! tabfirst")
+    pcall(vim.cmd, "NotesTree")
+    pcall(vim.cmd, "wincmd l")
+  end)
 end, {})
 
 --close everything command
