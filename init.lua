@@ -57,12 +57,33 @@ require('neo-tree').setup({
       ["mi"] = { "show_file_details", desc = "file info" },
       ["Y"] = { copy_node_path, desc = "copy path to clipboard" },
       ["mY"] = { copy_node_path, desc = "copy path to clipboard" },
+      -- file-changing actions only live in the `m` menu, so a stray keypress can't touch files
+      ["a"] = "none",
+      ["A"] = "none",
+      ["d"] = "none",
+      ["T"] = "none",
+      ["U"] = "none",
+      ["r"] = "none",
+      ["y"] = "none",
+      ["x"] = "none",
+      ["p"] = "none",
+      ["c"] = "none",
     },
   },
   filesystem = {
     window = {
       mappings = {
         ["u"] = "navigate_up",
+        ["b"] = "none",
+        -- double-clicking the root folder goes up to its parent
+        ["<2-LeftMouse>"] = { function(state)
+          local fs_commands = require("neo-tree.sources.filesystem.commands")
+          if state.tree:get_node():get_depth() == 1 then
+            fs_commands.navigate_up(state)
+          else
+            fs_commands.open(state)
+          end
+        end, desc = "open, or go up if on the root folder" },
       },
     },
   },
