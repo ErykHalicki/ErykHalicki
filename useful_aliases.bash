@@ -23,4 +23,12 @@ nvim() {
 alias work="nvim -c Start"
 
 # --- neofetch with custom ascii art (falls back to plain neofetch) ---
-alias neofetch='command neofetch $([ -f ~/Documents/ErykHalicki/walle-ascii-art.txt ] && echo "--ascii ~/Documents/ErykHalicki/walle-ascii-art.txt --ascii_colors 1 4 3 2 5 6")'
+unalias neofetch 2>/dev/null
+neofetch() {
+    local art="$HOME/Documents/ErykHalicki/walle-ascii-art.txt"
+    if [ -f "$art" ]; then
+        command neofetch --ascii "$art" --ascii_colors 1 4 3 2 5 6 "$@"
+    else
+        command neofetch "$@"
+    fi
+}
