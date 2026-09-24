@@ -87,6 +87,8 @@ end
 
 require('neo-tree').setup({
   close_if_last_window = true,
+  -- ask in the command line (with Tab completion) instead of neo-tree's own popups
+  use_popups_for_input = false,
   open_files_do_not_replace_types = { "terminal", "Trouble", "qf", "edgy", "notestree" },
   window = {
     mappings = {
@@ -149,17 +151,21 @@ require('neo-tree').setup({
   },
 })
 
--- neo-tree takes typed paths literally, so ~/foo would create a folder named "~"; expand it first
+-- neo-tree takes typed paths literally, so ~/foo would create a folder named "~"; expand it first.
+-- Full-path prompts also get nvim's own file completion, which understands ~ and absolute paths.
 do
   local inputs = require("neo-tree.ui.inputs")
   local neo_input = inputs.input
-  inputs.input = function(prompt, default_value, callback, ...)
+  inputs.input = function(prompt, default_value, callback, options, completion)
+    if type(default_value) == "string" and default_value:sub(1, 1) == "/" then
+      completion = "file"
+    end
     return neo_input(prompt, default_value, function(value)
       if type(value) == "string" and (value == "~" or value:sub(1, 2) == "~/") then
         value = vim.env.HOME .. value:sub(2)
       end
       callback(value)
-    end, ...)
+    end, options, completion)
   end
 end
 
