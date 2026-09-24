@@ -31,8 +31,41 @@ vim.cmd [[
 require('mini.icons').setup()
 MiniIcons.mock_nvim_web_devicons()
 
+local function copy_node_path(state)
+  local node = state.tree:get_node()
+  if node.type ~= "file" and node.type ~= "directory" then return end
+  local path = node:get_id()
+  vim.fn.setreg("+", path)
+  vim.notify("Copied " .. path)
+end
+
 require('neo-tree').setup({
   close_if_last_window = true,
+  window = {
+    mappings = {
+      -- NERDTree-style `m` menu: press m, a popup lists the actions, press a letter to pick
+      ["m"] = { "show_help", nowait = false, config = { title = "Menu", prefix_key = "m" } },
+      ["ma"] = { "add", desc = "add file (end with / for a folder)" },
+      ["mA"] = { "add_directory", desc = "add folder" },
+      ["mm"] = { "move", desc = "move" },
+      ["mr"] = { "rename", desc = "rename" },
+      ["mc"] = { "copy", desc = "copy" },
+      ["md"] = { "delete", desc = "delete" },
+      ["my"] = { "copy_to_clipboard", desc = "yank (copy) to clipboard" },
+      ["mx"] = { "cut_to_clipboard", desc = "cut to clipboard" },
+      ["mp"] = { "paste_from_clipboard", desc = "paste from clipboard" },
+      ["mi"] = { "show_file_details", desc = "file info" },
+      ["Y"] = { copy_node_path, desc = "copy path to clipboard" },
+      ["mY"] = { copy_node_path, desc = "copy path to clipboard" },
+    },
+  },
+  filesystem = {
+    window = {
+      mappings = {
+        ["u"] = "navigate_up",
+      },
+    },
+  },
   default_component_configs = {
     indent = {
       expander_collapsed = '▸',
