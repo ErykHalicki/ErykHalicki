@@ -65,7 +65,7 @@ vim.opt.cmdheight = 0
 -- every editing bell (end of buffer, bad command, completion, ...) silent.
 -- Neovim defaults to belloff=all, which swallows terminal bells too; this is
 -- that default list minus "term" and "shell".
-vim.opt.belloff = "backspace,cursor,complete,copy,ctrlg,error,esc,hangul,insertmode,lang,mess,showmatch,operator,register,spell,wildmode"
+vim.opt.belloff = "backspace,cursor,complete,copy,ctrlg,error,esc,hangul,lang,mess,showmatch,operator,register,spell,wildmode"
 
 -- TERMINAL MODE ESC MAPPING
 vim.keymap.set("t", "<Esc><Esc>", [[<C-\><C-n>]])
