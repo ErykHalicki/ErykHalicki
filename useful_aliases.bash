@@ -7,7 +7,8 @@
 # --- navigation ---
 alias s=source
 alias school="cd ~/Documents/School/"
-alias honours="cd ~/Documents/School/UBC/year4/bachelor-thesis"
+alias honours="cd ~/Documents/School/UBC/year4/thesis"
+alias thesis="cd ~/Documents/School/UBC/year4/thesis"
 alias proj="cd ~/Documents/projects"
 alias projects="cd ~/Documents/projects"
 
