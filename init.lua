@@ -20,6 +20,7 @@ vim.cmd [[
   Plug '~/notes/nvim'
   Plug 'lervag/vimtex'
   Plug 'micangl/cmp-vimtex'
+  Plug 'f3fora/cmp-spell'
   Plug 'nvim-lualine/lualine.nvim'
   Plug 'justinhj/battery.nvim'
   Plug 'MunifTanjim/nui.nvim'
@@ -105,6 +106,7 @@ require('neo-tree').setup({
       ["mx"] = { "cut_to_clipboard", desc = "cut to clipboard" },
       ["mp"] = { "paste_from_clipboard", desc = "paste from clipboard" },
       ["mi"] = { "show_file_details", desc = "file info" },
+      ["mR"] = { "refresh", desc = "refresh tree" },
       ["Y"] = { copy_node_path, desc = "copy path to clipboard" },
       ["mY"] = { copy_node_path, desc = "copy path to clipboard" },
       -- file-changing actions only live in the `m` menu, so a stray keypress can't touch files
@@ -199,6 +201,14 @@ vim.api.nvim_create_autocmd("TabNew", {
   command = "Neotree show"
 })
 
+-- neo-tree's file watcher only redraws trees in the current tab and just marks the rest dirty,
+-- so files made from the claude/lazygit/terminal tabs never showed up. Redraw on coming back.
+vim.api.nvim_create_autocmd("TabEnter", {
+  callback = function()
+    require("neo-tree.sources.manager").refresh("filesystem")
+  end,
+})
+
 -- GENERAL EDITOR SETTINGS
 
 vim.o.termguicolors = true
@@ -219,6 +229,9 @@ vim.opt.cmdheight = 0
 -- Neovim defaults to belloff=all, which swallows terminal bells too; this is
 -- that default list minus "term" and "shell".
 vim.opt.belloff = "backspace,cursor,complete,copy,ctrlg,error,esc,hangul,lang,mess,showmatch,operator,register,spell,wildmode"
+
+-- skip the slow sound-alike pass and cap suggestions; cmp-spell calls spellsuggest() on every keystroke
+vim.opt.spellsuggest = "fast,8"
 
 -- TERMINAL MODE ESC MAPPING
 vim.keymap.set("t", "<Esc><Esc>", [[<C-\><C-n>]])
@@ -370,12 +383,32 @@ require('img-clip').setup({
 })
 vim.keymap.set("n", "<leader>v", "<cmd>PasteImage<CR>", { desc = "paste image" })
 
+-- in markdown, `p` pastes the clipboard image if there is one, otherwise normal put
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = "markdown",
+  callback = function(ev)
+    vim.keymap.set("n", "p", function()
+      local info = vim.fn.system({ "osascript", "-e", "clipboard info" })
+      if info:match("PNGf") or info:match("TIFF") then
+        vim.cmd("PasteImage")
+      else
+        vim.api.nvim_feedkeys(vim.v.count1 .. '"' .. vim.v.register .. "p", "n", false)
+      end
+    end, { buffer = ev.buf, desc = "paste (image-aware)" })
+  end,
+})
+
 do
   local ok, notes = pcall(require, "notes")   -- only if ~/notes is cloned
   if ok then notes.setup({ cli = "notes", prefix = "<leader>n" }) end
 end
 
 -- statusline
+
+-- bibcite.lua and prose_stats.lua live next to this file in the dotfiles repo; ~/.config/nvim/init.lua is a symlink to it
+local dotfiles_dir = vim.fn.fnamemodify(vim.fn.resolve(debug.getinfo(1, 'S').source:sub(2)), ':h')
+local prose_stats = dofile(dotfiles_dir .. '/prose_stats.lua')
+prose_stats.setup()
 
 require('battery').setup({})
 require('lualine').setup({
@@ -389,7 +422,7 @@ require('lualine').setup({
     lualine_a = { 'mode' },
     lualine_b = { 'branch', 'diff' },
     lualine_c = { 'filename' },
-    lualine_x = { 'filetype' },
+    lualine_x = { prose_stats.component, 'filetype' },
     lualine_y = { { require('battery').get_status_line } },
     lualine_z = { { function() return os.date('%H:%M') end } },
   },
@@ -419,11 +452,22 @@ require('noice').setup({
 
 local cmp = require('cmp')
 
+-- cmp's preview only replaces text before the cursor, so mid-word it would leave the
+-- rest of the word dangling; just highlight there and let <CR> do the replacing
+local function select_behavior()
+  local col = vim.api.nvim_win_get_cursor(0)[2]
+  local mid_word = vim.api.nvim_get_current_line():sub(col + 1):match('^[%w_]') ~= nil
+  return mid_word and cmp.SelectBehavior.Select or cmp.SelectBehavior.Insert
+end
+
 cmp.setup({
+  -- wait for a pause in typing/deleting before querying sources (defaults 60/30)
+  performance = { debounce = 150, throttle = 80 },
+
   mapping = {
     ['<Tab>'] = function(fallback)
       if cmp.visible() then
-        cmp.select_next_item({ behavior = cmp.SelectBehavior.Insert })
+        cmp.select_next_item({ behavior = select_behavior() })
       else
         fallback()
       end
@@ -431,7 +475,7 @@ cmp.setup({
 
     ['<S-Tab>'] = function(fallback)
       if cmp.visible() then
-        cmp.select_prev_item({ behavior = cmp.SelectBehavior.Insert })
+        cmp.select_prev_item({ behavior = select_behavior() })
       else
         fallback()
       end
@@ -449,9 +493,88 @@ cmp.setup({
 
 require('cmp_vimtex').setup({})
 
+cmp.register_source('bibcite', dofile(dotfiles_dir .. '/bibcite.lua').new())
+
+-- cmp-spell only looks at the word up to the cursor; this wrapper hands it the whole
+-- word around the cursor and makes the chosen suggestion replace all of it
+do
+  local cmp_spell = require('cmp-spell')
+  local whole_word = setmetatable({}, { __index = cmp_spell.new() })
+
+  function whole_word:get_position_encoding_kind()
+    return 'utf-8'
+  end
+
+  function whole_word:complete(params, callback)
+    local ctx = params.context
+    local rest = ctx.cursor_after_line:match('^[%w_\128-\255]*')
+    local range = {
+      start = { line = ctx.cursor.line, character = params.offset - 1 },
+      ['end'] = { line = ctx.cursor.line, character = ctx.cursor.col - 1 + #rest },
+    }
+    local word_ctx = setmetatable({ cursor_before_line = ctx.cursor_before_line .. rest }, { __index = ctx })
+    local word_params = setmetatable({ context = word_ctx }, { __index = params })
+    cmp_spell.complete(self, word_params, function(response)
+      for _, item in ipairs(response.items) do
+        item.textEdit = { newText = item.label, range = range }
+      end
+      callback(response)
+    end)
+  end
+
+  cmp.register_source('spell_word', whole_word)
+end
+
+-- inside \cite{...} only bibcite shows; the second group is the fallback everywhere else
 cmp.setup.filetype('tex', {
+  sources = cmp.config.sources(
+    { { name = 'bibcite' } },
+    { { name = 'vimtex' }, { name = 'spell_word', option = { keep_all_entries = true } }, { name = 'buffer' }, { name = 'path' } }
+  ),
+})
+
+-- on a cursor move in insert mode (not one caused by typing), re-run spell completion
+-- for the word under the cursor; bibcite goes first so \cite{...} still gets keys
+local recheck_sources = cmp.config.sources(
+  { { name = 'bibcite' } },
+  { { name = 'spell_word', option = { keep_all_entries = true } } }
+)
+local recheck_group = vim.api.nvim_create_augroup('spell_recheck', { clear = true })
+
+-- cmp-spell reads suggestions from vim's spell checker, so spell has to be on in these buffers
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = { 'markdown', 'tex', 'plaintex', 'text', 'gitcommit' },
+  callback = function(args)
+    vim.opt_local.spell = true
+    vim.opt_local.spelllang = 'en_ca'
+
+    local last_tick = vim.b[args.buf].changedtick
+    vim.api.nvim_clear_autocmds({ group = recheck_group, buffer = args.buf })
+    vim.api.nvim_create_autocmd('CursorMovedI', {
+      group = recheck_group,
+      buffer = args.buf,
+      callback = function()
+        local tick = vim.b[args.buf].changedtick
+        if tick ~= last_tick then
+          last_tick = tick
+          return
+        end
+        local col = vim.api.nvim_win_get_cursor(0)[2]
+        local line = vim.api.nvim_get_current_line()
+        local word_char = '[%w_\128-\255]'
+        if line:sub(col, col):match(word_char) or line:sub(col + 1, col + 1):match(word_char) then
+          cmp.complete({ config = { sources = recheck_sources } })
+        else
+          cmp.close()
+        end
+      end,
+    })
+  end,
+})
+
+cmp.setup.filetype({ 'markdown', 'text', 'gitcommit' }, {
   sources = {
-    { name = 'vimtex' },
+    { name = 'spell_word', option = { keep_all_entries = true } },
     { name = 'buffer' },
     { name = 'path' },
   },
@@ -496,7 +619,7 @@ vim.g.vimtex_view_method = 'general'
 vim.g.vimtex_view_general_viewer = 'true'
 vim.api.nvim_create_autocmd('User', {
   pattern = 'VimtexEventView',
-  callback = function() vim.cmd('Open ' .. vim.fn.expand('%:p:r') .. '.pdf') end,
+  callback = function() vim.cmd('Open ' .. vim.fn.eval('b:vimtex.viewer.out()')) end,
 })
 
 -- CUSTOM COMMANDS
