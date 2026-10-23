@@ -224,6 +224,12 @@ vim.opt.hlsearch = false
 vim.opt.showmode = false
 vim.opt.cmdheight = 0
 
+-- reload buffers changed on disk (e.g. edits made by claude in another tab)
+vim.opt.autoread = true
+vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter", "CursorHold" }, {
+  command = "checktime",
+})
+
 -- Let a bell from a :terminal job through to the outer terminal, while keeping
 -- every editing bell (end of buffer, bad command, completion, ...) silent.
 -- Neovim defaults to belloff=all, which swallows terminal bells too; this is
