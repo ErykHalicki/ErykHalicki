@@ -621,12 +621,40 @@ for i = 1, 9 do
 end
 
 -- vimtex
-vim.g.vimtex_view_method = 'general'
-vim.g.vimtex_view_general_viewer = 'true'
-vim.api.nvim_create_autocmd('User', {
-  pattern = 'VimtexEventView',
-  callback = function() vim.cmd('Open ' .. vim.fn.eval('b:vimtex.viewer.out()')) end,
-})
+vim.cmd([[
+function! VimtexFollowAltMain() abort
+  let l:alt = getbufvar('#', 'vimtex', {})
+  if empty(l:alt) || !exists('b:vimtex') || l:alt.tex ==# b:vimtex.tex | return | endif
+  let l:file = expand('%:p')
+  for l:src in l:alt.get_sources()
+    if l:file ==# simplify(l:alt.root . '/' . l:src)
+      let b:vimtex_id = getbufvar('#', 'vimtex_id')
+      let b:vimtex = l:alt
+      return
+    endif
+  endfor
+endfunction
+augroup vimtex_follow_alt_main
+  autocmd!
+  autocmd BufEnter *.tex call VimtexFollowAltMain()
+augroup END
+]])
+if vim.fn.has('mac') == 1 then
+  vim.g.vimtex_view_method = 'general'
+  vim.g.vimtex_view_general_viewer = 'true'
+  vim.api.nvim_create_autocmd('User', {
+    pattern = 'VimtexEventView',
+    callback = function() vim.cmd('Open ' .. vim.fn.eval('b:vimtex.viewer.out()')) end,
+  })
+else
+  vim.g.vimtex_view_method = 'zathura_simple'
+  vim.api.nvim_create_autocmd('FileType', {
+    pattern = 'tex',
+    callback = function(ev)
+      vim.keymap.set('n', '<2-LeftMouse>', '<cmd>VimtexView<CR>', { buffer = ev.buf })
+    end,
+  })
+end
 
 -- CUSTOM COMMANDS
 vim.api.nvim_create_user_command('Open', function(opts)
