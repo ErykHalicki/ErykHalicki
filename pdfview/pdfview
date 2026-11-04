@@ -1,0 +1,38 @@
+#!/bin/sh
+set -e
+dir="$HOME/.local/share/pdfview"
+pdf=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
+port="${PDFVIEW_PORT:-47219}"
+mkdir -p "$HOME/.cache/pdfview"
+if [ "$dir/tail.html" -ot "$dir/viewer.js" ] || [ "$dir/tail.html" -ot "$0" ]; then
+  {
+    printf '<script type="module">'; cat "$dir/pdf.worker.min.mjs"
+    printf '</script>\n<script type="module">'; cat "$dir/pdf.min.mjs"
+    printf '</script>\n<script type="module">'; cat "$dir/viewer.js"
+    printf '</script>\n</body></html>\n'
+  } > "$dir/tail.html.tmp"
+  mv "$dir/tail.html.tmp" "$dir/tail.html"
+fi
+
+ping() { curl -sf --max-time 1 "http://127.0.0.1:$port/ping" >/dev/null 2>&1; }
+if ! ping; then
+  nohup python3 "$dir/server.py" "$port" </dev/null >"$HOME/.cache/pdfview/server.log" 2>&1 &
+  i=0
+  while [ $i -lt 30 ] && ! ping; do sleep 0.1; i=$((i + 1)); done
+fi
+
+if ping; then
+  printf 'http://127.0.0.1:%s/view?pdf=%s\n' "$port" "$(python3 -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1]))' "$pdf")"
+  exit 0
+fi
+
+# Server unavailable: fall back to a static file:// page with the PDF embedded (no live reload).
+name="$(basename "$pdf" .pdf)-$(printf %s "$pdf" | md5 -q | cut -c1-8)"
+out="$HOME/.cache/pdfview/$name.html"
+{
+  cat "$dir/head.html"; base64 -i "$pdf"
+  printf '</script>\n'
+  cat "$dir/tail.html"
+} > "$out.tmp"
+mv "$out.tmp" "$out"
+printf '%s\n' "$out"
