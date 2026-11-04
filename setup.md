@@ -154,6 +154,10 @@ systemctl --user link ~/Documents/ErykHalicki/term.service
 systemctl --user enable --now term.service
 ```
 
+Each tab's shell survives dropped connections (closing the lid makes Brave drop them) and reloads:
+`term-tab.js` gives the tab an id and termbridge keeps that tab's shell in a background session,
+replaying recent output on reattach. A session left detached for 12 hours is closed.
+
 `term` serves ttyd's page with `term-page.js` added, which supplies what ttyd's options can't: light/dark
 colours that follow the system, the iTerm2 profile's key mappings, a visual bell and the tab icon.
 

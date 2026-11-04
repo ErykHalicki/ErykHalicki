@@ -20,10 +20,13 @@ import re
 import select
 import shutil
 import signal
+import socket
+import struct
 import subprocess
 import sys
 import tempfile
 import termios
+import time
 import tty
 
 DIR = os.path.expanduser("~/Downloads/term")
@@ -211,15 +214,19 @@ def write_all(fd, data):
         data = data[os.write(fd, data):]
 
 
-def main():
-    argv = sys.argv[1:] or [os.environ.get("SHELL") or pwd.getpwuid(os.getuid()).pw_shell, "-l"]
+def spawn(argv):
     pid, master = pty.fork()
     if pid == 0:
         try:
             os.execvp(argv[0], argv)
         finally:
             os._exit(127)
+    return pid, master
 
+
+def direct(argv):
+    """No tab id: the shell lives exactly as long as this connection."""
+    pid, master = spawn(argv)
     interactive = os.isatty(0)
 
     def resize(*_):
@@ -255,6 +262,201 @@ def main():
             termios.tcsetattr(0, termios.TCSAFLUSH, saved)
         _, status = os.waitpid(pid, 0)
         sys.exit(os.waitstatus_to_exitcode(status))
+
+
+# Sessions: Brave drops its connections whenever the network changes (closing the lid does it), and
+# ttyd then kills the command and starts a new one. With a tab id, the shell instead lives in a
+# background server on a unix socket and each connection is just a client that attaches to it; a
+# reconnecting tab gets its shell back, with recent output replayed and terminal modes restored.
+SESSIONS = os.path.expanduser("~/.cache/term/sessions")
+DETACHED_TTL = 12 * 3600
+REPLAY = 512 * 1024
+MODES = re.compile(rb"\x1b\[\?([0-9;]+)([hl])")
+
+
+def frame(kind, payload):
+    return kind + len(payload).to_bytes(4, "big") + payload
+
+
+def serve(sock_path, srv, argv):
+    pid, master = spawn(argv)
+    bridge = Bridge(master)
+    client, inbuf, replay, modes, fresh = None, b"", bytearray(), {}, False
+    detached_at, redraw = time.monotonic(), None
+
+    def set_size(ws):
+        fcntl.ioctl(master, termios.TIOCSWINSZ, ws)
+
+    try:
+        while True:
+            now = time.monotonic()
+            waits = [t for t in (redraw and redraw[0], None if client else detached_at + DETACHED_TTL) if t]
+            timeout = max(0, min(waits) - now) if waits else None
+            ready = select.select([srv, master] + ([client] if client else []), [], [], timeout)[0]
+            now = time.monotonic()
+            if redraw and now >= redraw[0]:
+                set_size(redraw[1])
+                redraw = None
+            if not client and now >= detached_at + DETACHED_TTL:
+                os.kill(pid, signal.SIGHUP)
+                return
+            if srv in ready:
+                if client:
+                    client.close()
+                client, inbuf, fresh = srv.accept()[0], b"", True
+                restore = b"".join(b"\x1b[?" + n + v for n, v in modes.items())
+                try:
+                    client.sendall(bytes(replay) + restore)
+                except OSError:
+                    client = None
+            if master in ready:
+                try:
+                    data = os.read(master, 65536)
+                except OSError:
+                    data = b""
+                if not data:
+                    return
+                out = bridge.feed(data)
+                replay += out
+                if len(replay) > REPLAY:
+                    nl = replay.find(b"\n", len(replay) - REPLAY)
+                    del replay[:nl + 1 if nl >= 0 else len(replay) - REPLAY]
+                for m in MODES.finditer(out):
+                    for n in m.group(1).split(b";"):
+                        modes[n] = m.group(2)
+                if client:
+                    try:
+                        client.sendall(out)
+                    except OSError:
+                        client.close()
+                        client, detached_at = None, now
+            if client and client in ready:
+                data = client.recv(65536)
+                if not data:
+                    client.close()
+                    client, detached_at = None, now
+                    continue
+                inbuf += data
+                while len(inbuf) >= 5 and len(inbuf) >= 5 + int.from_bytes(inbuf[1:5], "big"):
+                    n = int.from_bytes(inbuf[1:5], "big")
+                    kind, payload, inbuf = inbuf[:1], inbuf[5:5 + n], inbuf[5 + n:]
+                    if kind == b"d":
+                        write_all(master, payload)
+                    elif kind == b"w" and fresh:
+                        # a full-screen app only repaints if its size really changes, so step through
+                        # one column narrower to make it redraw for the client that just attached
+                        rows, cols, x, y = struct.unpack("HHHH", payload)
+                        set_size(struct.pack("HHHH", rows, max(1, cols - 1), x, y))
+                        redraw, fresh = (time.monotonic() + 0.05, payload), False
+                    elif kind == b"w" and redraw:
+                        redraw = (redraw[0], payload)
+                    elif kind == b"w":
+                        set_size(payload)
+    finally:
+        try:
+            os.unlink(sock_path)
+        except OSError:
+            pass
+        if client:
+            client.close()
+
+
+def attach(sock_path):
+    c = socket.socket(socket.AF_UNIX)
+    try:
+        c.connect(sock_path)
+        return c
+    except ConnectionRefusedError:
+        os.unlink(sock_path)
+        return None
+    except OSError:
+        return None
+
+
+def start_server(sock_path, argv):
+    srv = socket.socket(socket.AF_UNIX)
+    try:
+        srv.bind(sock_path)
+    except OSError:
+        return
+    os.chmod(sock_path, 0o600)
+    srv.listen(4)
+    if os.fork():
+        srv.close()
+        return
+    os.setsid()
+    if os.fork():
+        os._exit(0)
+    signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    null = os.open(os.devnull, os.O_RDWR)
+    for fd in (0, 1, 2):
+        os.dup2(null, fd)
+    try:
+        serve(sock_path, srv, argv)
+    finally:
+        os._exit(0)
+
+
+def session(tab, argv):
+    os.makedirs(SESSIONS, mode=0o700, exist_ok=True)
+    sock_path = os.path.join(SESSIONS, tab + ".sock")
+    c = attach(sock_path)
+    if not c:
+        start_server(sock_path, argv)
+        for _ in range(100):
+            c = attach(sock_path)
+            if c:
+                break
+            time.sleep(0.02)
+    if not c:
+        return direct(argv)
+    interactive = os.isatty(0)
+    wake_r, wake_w = os.pipe()
+    os.set_blocking(wake_w, False)
+    signal.set_wakeup_fd(wake_w)
+    signal.signal(signal.SIGWINCH, lambda *_: None)
+
+    def send_size():
+        if interactive:
+            c.sendall(frame(b"w", fcntl.ioctl(0, termios.TIOCGWINSZ, b"\0" * 8)))
+
+    send_size()
+    saved = termios.tcgetattr(0) if interactive else None
+    if interactive:
+        tty.setraw(0)
+    fds = [0, c, wake_r]
+    try:
+        while True:
+            for fd in select.select(fds, [], [])[0]:
+                if fd == wake_r:
+                    os.read(wake_r, 512)
+                    send_size()
+                elif fd == c:
+                    data = c.recv(65536)
+                    if not data:
+                        return
+                    write_all(1, data)
+                else:
+                    data = os.read(0, 65536)
+                    if data:
+                        c.sendall(frame(b"d", data))
+                    else:
+                        fds.remove(0)
+    finally:
+        if saved:
+            termios.tcsetattr(0, termios.TCSAFLUSH, saved)
+
+
+def main():
+    args = sys.argv[1:]
+    tab = None
+    if args and args[0].startswith("--tab="):
+        tab = re.sub(r"[^\w-]", "", args.pop(0)[6:])[:32] or None
+    argv = args or [os.environ.get("SHELL") or pwd.getpwuid(os.getuid()).pw_shell, "-l"]
+    if tab:
+        session(tab, argv)
+    else:
+        direct(argv)
 
 
 if __name__ == "__main__":
