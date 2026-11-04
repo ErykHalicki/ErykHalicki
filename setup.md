@@ -161,7 +161,8 @@ lists them with a link that reopens each in a new tab (so closed tabs can be rec
 `term kill <id>` ends one.
 
 `term` serves ttyd's page with `term-page.js` added, which supplies what ttyd's options can't: light/dark
-colours that follow the system, the iTerm2 profile's key mappings, a visual bell and the tab icon.
+colours that follow the system, the iTerm2 profile's key mappings, a visual bell, the tab icon, and a chime plus
+desktop notification for a bell in a background tab or an OSC 9 message (`long_job; printf '\e]9;done\a'`).
 
 Put `term` on your PATH with `ln -s ~/Documents/ErykHalicki/term ~/.local/bin/term`; `term url` prints
 the address to bookmark. Add `?arg=ssh&arg=<host>` for a

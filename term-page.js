@@ -55,10 +55,58 @@
     const flash = document.createElement('div');
     flash.style.cssText = 'position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .15s;z-index:10';
     document.body.appendChild(flash);
+    // a bell while you're looking only flashes; a bell in a tab you've left, or an explicit
+    // notification (OSC 9 or OSC 777;notify, e.g. `long_job; printf '\e]9;done\a'`), also chimes and
+    // pops a desktop notification. Browsers allow sound and the permission prompt only after a user
+    // gesture, so both are set up on the first key press or click
+    let audio = null;
+    const unlock = () => {
+      if (!audio) audio = new AudioContext();
+      audio.resume();
+      if (window.Notification && Notification.permission === 'default') Notification.requestPermission();
+    };
+    window.addEventListener('keydown', unlock, true);
+    window.addEventListener('mousedown', unlock, true);
+
+    const chime = () => {
+      if (!audio || audio.state !== 'running') return;
+      const t = audio.currentTime;
+      [880, 1318.5].forEach((f, i) => {
+        const o = audio.createOscillator(), g = audio.createGain();
+        o.frequency.value = f;
+        g.gain.setValueAtTime(0, t + i * 0.12);
+        g.gain.linearRampToValueAtTime(0.25, t + i * 0.12 + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.12 + 0.4);
+        o.connect(g).connect(audio.destination);
+        o.start(t + i * 0.12);
+        o.stop(t + i * 0.12 + 0.45);
+      });
+    };
+
+    const away = () => document.hidden || !document.hasFocus();
+    const notify = body => {
+      chime();
+      if (away() && window.Notification && Notification.permission === 'granted') {
+        const n = new Notification(document.title, { body, silent: true });
+        n.onclick = () => { window.focus(); n.close(); };
+      }
+    };
+
     term.onBell(() => {
       flash.style.background = theme.foreground;
       flash.style.opacity = '0.15';
       setTimeout(() => { flash.style.opacity = '0'; }, 100);
+      if (away()) notify('bell');
+    });
+    term.parser.registerOscHandler(9, data => {
+      // OSC 9;4 is ConEmu's progress bar, not a message
+      if (!/^4;/.test(data)) notify(data || 'done');
+      return true;
+    });
+    term.parser.registerOscHandler(777, data => {
+      const [kind, title, ...body] = data.split(';');
+      if (kind === 'notify') notify([title, body.join(';')].filter(Boolean).join(': ') || 'done');
+      return true;
     });
   }
 
