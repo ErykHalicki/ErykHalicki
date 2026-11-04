@@ -673,15 +673,18 @@ end
 -- termbridge acks every chunk; keeping a few in flight stops nvim queueing a whole video in memory
 -- faster than ssh drains it, and no ack at all means nothing on the other end is listening
 local open_queue = {}
+local open_watch = {}
 local function open_next()
-  local path = open_queue[1]
-  if not path then return end
+  local job = open_queue[1]
+  if not job then return end
+  local path = job.path
   local f = io.open(path, 'rb')
+  if not f then
+    table.remove(open_queue, 1)
+    return vim.schedule(open_next)
+  end
   local size = f:seek('end')
   f:seek('set')
-  if size > 20 * 1024 * 1024 then
-    vim.notify(string.format('Open: sending %.0f MB', size / 1024 / 1024))
-  end
   local inflight, done, timer = 0, false, vim.uv.new_timer()
   local ack
   local function finish(msg)
@@ -692,7 +695,11 @@ local function open_next()
     table.remove(open_queue, 1)
     if msg then
       open_queue = {}
-      return vim.notify(msg, vim.log.levels.ERROR)
+      if open_watch[path] and not job.show then
+        open_watch[path]:close()
+        open_watch[path] = nil
+      end
+      return job.show and vim.notify(msg, vim.log.levels.ERROR)
     end
     vim.schedule(open_next)
   end
@@ -715,15 +722,69 @@ local function open_next()
   ack = vim.api.nvim_create_autocmd('TermResponse', {
     callback = function(ev)
       local seq = type(ev.data) == 'table' and ev.data.sequence or ev.data
-      if seq and seq:find('1337;FileAck', 1, true) then
+      if not seq then return end
+      if seq:find('1337;FileAck', 1, true) then
         inflight = inflight - 1
         pump()
+      elseif seq:find('1337;FileSend', 1, true) then
+        if size > 20 * 1024 * 1024 then
+          vim.notify(string.format('Open: sending %.0f MB', size / 1024 / 1024))
+        end
+        pump()
+      elseif seq:find('1337;FileLocal', 1, true) then
+        finish()
       end
     end,
   })
+  -- key names the source, so termbridge saves every send of it to the same local file. id lets it
+  -- spot that it can see this very file (same path, device and inode) and open it in place, in which
+  -- case it answers FileLocal and no data is sent; otherwise it answers FileSend
+  local st = vim.uv.fs_stat(path)
   term_send('\027]1337;MultipartFile=name=' .. vim.base64.encode(vim.fn.fnamemodify(path, ':t'))
-    .. ';size=' .. size .. ';inline=0\007')
-  pump()
+    .. ';size=' .. size .. ';inline=0;key=' .. vim.base64.encode(vim.uv.os_gethostname() .. ':' .. path)
+    .. ';id=' .. vim.base64.encode(string.format('%d:%d:', st.dev, st.ino) .. path)
+    .. ';open=' .. (job.show and 1 or 0) .. '\007')
+  timer:start(5000, 0, vim.schedule_wrap(function()
+    finish('Open: no reply from termbridge (is this terminal running under it?)')
+  end))
+end
+
+local function open_enqueue(path, show)
+  for i = 2, #open_queue do
+    if open_queue[i].path == path then
+      open_queue[i].show = open_queue[i].show or show
+      return
+    end
+  end
+  table.insert(open_queue, { path = path, show = show })
+  if #open_queue == 1 then open_next() end
+end
+
+-- an :Open'ed file is resent quietly whenever it changes (e.g. vimtex recompiling), over the copy
+-- termbridge already has, so refreshing the browser tab shows the new version. Polling stat works on
+-- any filesystem; waiting for it to sit still for half a second skips half-written PDFs
+local function open_follow(path)
+  if open_watch[path] then return end
+  local poll, settle = vim.uv.new_fs_poll(), vim.uv.new_timer()
+  poll:start(path, 1000, function(err)
+    if err then return end
+    settle:start(500, 0, vim.schedule_wrap(function()
+      -- pdflatex writes %%EOF last, so a PDF without it is still being written; its next write retriggers
+      if path:lower():match('%.pdf$') then
+        local f = io.open(path, 'rb')
+        local tail = f and f:seek('set', math.max(0, f:seek('end') - 32)) and f:read('*a') or ''
+        if f then f:close() end
+        if not tail:find('%%EOF', 1, true) then return end
+      end
+      open_enqueue(path, false)
+    end))
+  end)
+  open_watch[path] = {
+    close = function()
+      poll:close()
+      settle:close()
+    end,
+  }
 end
 
 vim.api.nvim_create_user_command('Open', function(opts)
@@ -731,8 +792,8 @@ vim.api.nvim_create_user_command('Open', function(opts)
   if vim.fn.filereadable(path) == 0 then
     return vim.notify('Open: cannot read ' .. path, vim.log.levels.ERROR)
   end
-  table.insert(open_queue, path)
-  if #open_queue == 1 then open_next() end
+  open_enqueue(path, true)
+  open_follow(path)
 end, { nargs = '?', complete = 'file' })
 
 

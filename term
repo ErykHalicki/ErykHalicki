@@ -21,13 +21,15 @@ if [ "$1" = url ]; then
 fi
 case $(uname) in Darwin) lo=lo0 ;; *) lo=lo ;; esac
 
-# ttyd's own page plus term-page.js (theme, key mappings, bell) and the tab icon; rebuilt only when
+# ttyd's own page plus term-page.js (theme, key mappings, bell), the tab icon and the Nerd Font icons as
+# a web font (Brave hides locally installed fonts from pages), scaled to one Menlo cell as iTerm2 draws
+# them; rebuilt only when
 # ttyd or those files change, by fetching the page from a throwaway ttyd on a unix socket
 page="$HOME/.cache/term/index.html"
 python3 - "$page" "$dir" "$(command -v ttyd)" <<'EOF'
 import base64, os, re, shutil, socket, subprocess, sys, tempfile, time
 page, d, ttyd = sys.argv[1:]
-srcs = [ttyd] + [os.path.join(d, f) for f in ("term", "term-page.js", "term-icon.png")]
+srcs = [ttyd] + [os.path.join(d, f) for f in ("term", "term-page.js", "term-icon.png", "term-symbols.ttf")]
 if os.path.exists(page) and os.path.getmtime(page) >= max(map(os.path.getmtime, srcs)):
     sys.exit()
 tmp = tempfile.mkdtemp()
@@ -51,6 +53,9 @@ html = resp.split(b"\r\n\r\n", 1)[1].decode()
 icon = base64.b64encode(open(os.path.join(d, "term-icon.png"), "rb").read()).decode()
 html = re.sub(r'<link rel="icon"[^>]*>', lambda _: f'<link rel="icon" type="image/png" href="data:image/png;base64,{icon}">', html, count=1)
 html = re.sub(r"<title>[^<]*</title>", lambda _: f"<title>{socket.gethostname().split('.')[0]}</title>", html, count=1)
+font = base64.b64encode(open(os.path.join(d, "term-symbols.ttf"), "rb").read()).decode()
+i = html.index("</head>")
+html = html[:i] + f'<style>@font-face{{font-family:"TermSymbols";src:url(data:font/ttf;base64,{font}) format("truetype");size-adjust:60%}}</style>' + html[i:]
 i = html.rindex("</body>")
 html = html[:i] + "<script>" + open(os.path.join(d, "term-page.js")).read() + "</script>" + html[i:]
 os.makedirs(os.path.dirname(page), exist_ok=True)
@@ -62,6 +67,6 @@ EOF
 cd "$HOME"
 exec ttyd -i "$lo" -p "$port" -b "/$secret" -W -a -O -I "$page" \
   -t fontSize=12 -t "titleFixed=$(hostname -s)" \
-  -t "fontFamily=Menlo, 'DejaVu Sans Mono', '3270 Nerd Font Mono', 'Symbols Nerd Font Mono', monospace" \
+  -t "fontFamily=Menlo, 'DejaVu Sans Mono', TermSymbols, monospace" \
   -t cursorStyle=bar -t cursorBlink=true -t scrollback=100000 -t disableLeaveAlert=true \
   python3 "$dir/termbridge"

@@ -34,6 +34,13 @@
     apply();
     dark.addEventListener('change', apply);
 
+    // the icon font loads only once something asks for it, and glyphs drawn before then stay cached
+    // as boxes, so load it up front and redraw
+    document.fonts.load('12px TermSymbols', '\uf07b').then(() => {
+      term.clearTextureAtlas();
+      term.refresh(0, term.rows - 1);
+    });
+
     term.attachCustomKeyEventHandler(ev => {
       const mods = (ev.metaKey ? 'M' : '') + (ev.altKey ? 'A' : '') + (ev.ctrlKey ? 'C' : '') + (ev.shiftKey ? 'S' : '');
       const seq = keys[mods + ':' + ev.key];

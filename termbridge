@@ -2,7 +2,9 @@
 """Run a command (default: login shell) in a pty and act on escape codes sent from any ssh depth.
 
   OSC 1337 MultipartFile/FilePart/FileEnd, File  ->  save under ~/Downloads/term, open in Brave;
-                                                    each FilePart is acked so the sender can pace itself
+                                                    each FilePart is acked so the sender can pace itself;
+                                                    key= keeps one local file per source, open=0 skips Brave;
+                                                    id= matching a file here opens it in place, sending nothing
   OSC 52 copy                                    ->  local clipboard
   OSC 52 query (?)                               ->  answered with the local clipboard
 
@@ -10,6 +12,7 @@ ttyd runs this on the machine you sit at, so files and the clipboard land where 
 """
 import base64
 import fcntl
+import hashlib
 import os
 import pty
 import pwd
@@ -81,16 +84,42 @@ class Bridge:
         base, ext = os.path.splitext(name)
         base = re.sub(r"[^\w.-]", "_", base)[:80] or "file"
         ext = re.sub(r"[^\w]", "", ext)[:16]
+        suffix = "." + ext if ext else ""
         os.makedirs(DIR, exist_ok=True)
-        fd, path = tempfile.mkstemp(prefix=base + "-", suffix="." + ext if ext else "", dir=DIR)
-        self.file = (os.fdopen(fd, "wb"), path)
+        key = args.get("key")
+        if key:
+            # same source, same local file: a resend replaces the copy the browser already has open
+            path = os.path.join(DIR, f"{base}-{hashlib.sha1(key).hexdigest()[:8]}{suffix}")
+        else:
+            fd, path = tempfile.mkstemp(prefix=base + "-", suffix=suffix, dir=DIR)
+            os.close(fd)
+        fd, tmp = tempfile.mkstemp(prefix=".partial-", dir=DIR)
+        self.file = (os.fdopen(fd, "wb"), tmp, path, args.get("open", b"1") != b"0")
+
+    def local_path(self, ident):
+        """The sender's file itself if this machine can see it: same path, device and inode."""
+        try:
+            dev, ino, path = base64.b64decode(ident or b"").decode().split(":", 2)
+            st = os.stat(path)
+        except (ValueError, OSError):
+            return None
+        return path if (st.st_dev, st.st_ino) == (int(dev), int(ino)) else None
+
+    def abort_file(self):
+        if self.file:
+            f, tmp, _, _ = self.file
+            f.close()
+            os.unlink(tmp)
+            self.file = None
 
     def end_file(self):
         if self.file:
-            f, path = self.file
+            f, tmp, path, show = self.file
             f.close()
+            os.replace(tmp, path)
             self.file = None
-            launch(path)
+            if show:
+                launch(path)
 
     def handle(self, body):
         if body.startswith(b"52;"):
@@ -106,8 +135,16 @@ class Bridge:
             return
         body = body[5:]
         if body.startswith(b"MultipartFile="):
-            self.end_file()
-            self.start_file(params(body[14:]))
+            self.abort_file()
+            args = params(body[14:])
+            here = self.local_path(args.get("id"))
+            if here:
+                os.write(self.master, b"\x1b]1337;FileLocal\x1b\\")
+                if args.get("open", b"1") != b"0":
+                    launch(here)
+                return
+            self.start_file(args)
+            os.write(self.master, b"\x1b]1337;FileSend\x1b\\")
         elif body.startswith(b"FilePart="):
             if self.file:
                 try:
