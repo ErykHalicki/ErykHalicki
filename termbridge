@@ -1,0 +1,224 @@
+#!/usr/bin/env python3
+"""Run a command (default: login shell) in a pty and act on escape codes sent from any ssh depth.
+
+  OSC 1337 MultipartFile/FilePart/FileEnd, File  ->  save under ~/Downloads/term, open in Brave;
+                                                    each FilePart is acked so the sender can pace itself
+  OSC 52 copy                                    ->  local clipboard
+  OSC 52 query (?)                               ->  answered with the local clipboard
+
+ttyd runs this on the machine you sit at, so files and the clipboard land where you are.
+"""
+import base64
+import fcntl
+import os
+import pty
+import pwd
+import re
+import select
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import termios
+import tty
+
+DIR = os.path.expanduser("~/Downloads/term")
+OURS = (b"1337;MultipartFile=", b"1337;FilePart=", b"1337;FileEnd", b"1337;File=", b"52;")
+MAX_PENDING = 64 * 1024 * 1024
+
+
+def first(*cmds):
+    for c in cmds:
+        if shutil.which(c[0]):
+            return list(c)
+    return None
+
+
+MAC = sys.platform == "darwin"
+BROWSER = os.environ.get("TERMBRIDGE_BROWSER", "").split() or (
+    ["open", "-a", "Brave Browser"] if MAC else first(["brave"], ["brave-browser"], ["brave-browser-stable"], ["/snap/bin/brave"]))
+COPY = ["pbcopy"] if MAC else first(["wl-copy"], ["xsel", "-bi"], ["xclip", "-selection", "clipboard"])
+PASTE = ["pbpaste"] if MAC else first(["wl-paste", "-n"], ["xsel", "-bo"], ["xclip", "-o", "-selection", "clipboard"])
+
+
+def run(cmd, data=None):
+    if not cmd:
+        return b""
+    try:
+        return subprocess.run(cmd, input=data, capture_output=True, timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        return b""
+
+
+def launch(path):
+    if BROWSER:
+        subprocess.Popen(BROWSER + [path], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, start_new_session=True)
+
+
+def params(s):
+    out = {}
+    for kv in s.split(b";"):
+        k, _, v = kv.partition(b"=")
+        out[k.decode(errors="replace")] = v
+    return out
+
+
+class Bridge:
+    def __init__(self, master):
+        self.master = master
+        self.tail = b""
+        self.pending = None
+        self.file = None
+
+    def start_file(self, args):
+        try:
+            name = base64.b64decode(args.get("name", b"")).decode(errors="replace")
+        except ValueError:
+            name = ""
+        name = os.path.basename(name) or "file"
+        base, ext = os.path.splitext(name)
+        base = re.sub(r"[^\w.-]", "_", base)[:80] or "file"
+        ext = re.sub(r"[^\w]", "", ext)[:16]
+        os.makedirs(DIR, exist_ok=True)
+        fd, path = tempfile.mkstemp(prefix=base + "-", suffix="." + ext if ext else "", dir=DIR)
+        self.file = (os.fdopen(fd, "wb"), path)
+
+    def end_file(self):
+        if self.file:
+            f, path = self.file
+            f.close()
+            self.file = None
+            launch(path)
+
+    def handle(self, body):
+        if body.startswith(b"52;"):
+            _, _, data = body[3:].partition(b";")
+            if data == b"?":
+                reply = base64.b64encode(run(PASTE))
+                os.write(self.master, b"\x1b]52;c;" + reply + b"\x1b\\")
+            else:
+                try:
+                    run(COPY, base64.b64decode(data))
+                except ValueError:
+                    pass
+            return
+        body = body[5:]
+        if body.startswith(b"MultipartFile="):
+            self.end_file()
+            self.start_file(params(body[14:]))
+        elif body.startswith(b"FilePart="):
+            if self.file:
+                try:
+                    self.file[0].write(base64.b64decode(body[9:]))
+                except ValueError:
+                    pass
+            os.write(self.master, b"\x1b]1337;FileAck\x1b\\")
+        elif body.startswith(b"FileEnd"):
+            self.end_file()
+        elif body.startswith(b"File="):
+            head, _, data = body[5:].partition(b":")
+            self.start_file(params(head))
+            try:
+                self.file[0].write(base64.b64decode(data))
+            except ValueError:
+                pass
+            self.end_file()
+
+    def feed(self, data):
+        """Pass bytes through, pulling out our sequences; scans each byte once since macOS ptys read ~1 KB at a time."""
+        buf = self.tail + data
+        self.tail = b""
+        out = []
+        pos = 0
+        longest = max(map(len, OURS))
+        while pos < len(buf):
+            if self.pending is not None:
+                ends = [e for e in (buf.find(b"\x07", pos), buf.find(b"\x1b\\", pos)) if e >= 0]
+                if not ends:
+                    stop = len(buf) - 1 if buf.endswith(b"\x1b") else len(buf)
+                    self.pending += buf[pos:stop]
+                    self.tail = buf[stop:]
+                    if len(self.pending) > MAX_PENDING:
+                        self.pending = None
+                    break
+                end = min(ends)
+                self.pending += buf[pos:end]
+                body, self.pending = bytes(self.pending), None
+                self.handle(body)
+                pos = end + (1 if buf[end] == 7 else 2)
+                continue
+            i = buf.find(b"\x1b]", pos)
+            if i < 0:
+                stop = len(buf) - 1 if buf.endswith(b"\x1b") else len(buf)
+                out.append(buf[pos:stop])
+                self.tail = buf[stop:]
+                break
+            out.append(buf[pos:i])
+            head = buf[i + 2:i + 2 + longest]
+            if any(head.startswith(p) for p in OURS):
+                self.pending = bytearray()
+                pos = i + 2
+            elif len(head) < longest and any(p.startswith(head) for p in OURS):
+                self.tail = buf[i:]
+                break
+            else:
+                out.append(b"\x1b]")
+                pos = i + 2
+        return b"".join(out)
+
+
+def write_all(fd, data):
+    while data:
+        data = data[os.write(fd, data):]
+
+
+def main():
+    argv = sys.argv[1:] or [os.environ.get("SHELL") or pwd.getpwuid(os.getuid()).pw_shell, "-l"]
+    pid, master = pty.fork()
+    if pid == 0:
+        try:
+            os.execvp(argv[0], argv)
+        finally:
+            os._exit(127)
+
+    interactive = os.isatty(0)
+
+    def resize(*_):
+        if interactive:
+            fcntl.ioctl(master, termios.TIOCSWINSZ, fcntl.ioctl(0, termios.TIOCGWINSZ, b"\0" * 8))
+
+    resize()
+    signal.signal(signal.SIGWINCH, resize)
+    saved = termios.tcgetattr(0) if interactive else None
+    if interactive:
+        tty.setraw(0)
+    bridge = Bridge(master)
+    fds = [0, master]
+    try:
+        while True:
+            for fd in select.select(fds, [], [])[0]:
+                if fd == master:
+                    try:
+                        data = os.read(master, 65536)
+                    except OSError:
+                        data = b""
+                    if not data:
+                        return
+                    write_all(1, bridge.feed(data))
+                else:
+                    data = os.read(0, 65536)
+                    if data:
+                        write_all(master, data)
+                    else:
+                        fds.remove(0)
+    finally:
+        if saved:
+            termios.tcsetattr(0, termios.TCSAFLUSH, saved)
+        _, status = os.waitpid(pid, 0)
+        sys.exit(os.waitstatus_to_exitcode(status))
+
+
+if __name__ == "__main__":
+    main()

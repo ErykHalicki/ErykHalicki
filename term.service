@@ -1,0 +1,11 @@
+[Unit]
+Description=Browser terminal (ttyd + termbridge) on localhost
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecStart=%h/Documents/ErykHalicki/term
+Restart=always
+
+[Install]
+WantedBy=graphical-session.target

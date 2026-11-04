@@ -1,0 +1,67 @@
+#!/bin/sh
+# Browser terminal for this machine: ttyd on localhost with every session under termbridge.
+#   term        run it (the login service does this)
+#   term url    print the address to bookmark; add ?arg=ssh&arg=<host> for a tab that opens on <host>
+# ttyd only answers under a random secret path, so other web pages can't guess their way to a shell.
+set -e
+dir=$(cd "$(dirname "$0")" && pwd -P)
+export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+# login services start without a locale, and programs then count UTF-8 bytes as characters
+export LANG="${LANG:-en_US.UTF-8}"
+port=${TERM_PORT:-7681}
+secret_file="$HOME/.config/term/secret"
+if [ ! -s "$secret_file" ]; then
+  mkdir -p "$(dirname "$secret_file")"
+  (umask 077 && python3 -c 'import secrets; print(secrets.token_urlsafe(18))' > "$secret_file")
+fi
+secret=$(cat "$secret_file")
+if [ "$1" = url ]; then
+  echo "http://localhost:$port/$secret/"
+  exit
+fi
+case $(uname) in Darwin) lo=lo0 ;; *) lo=lo ;; esac
+
+# ttyd's own page plus term-page.js (theme, key mappings, bell) and the tab icon; rebuilt only when
+# ttyd or those files change, by fetching the page from a throwaway ttyd on a unix socket
+page="$HOME/.cache/term/index.html"
+python3 - "$page" "$dir" "$(command -v ttyd)" <<'EOF'
+import base64, os, re, shutil, socket, subprocess, sys, tempfile, time
+page, d, ttyd = sys.argv[1:]
+srcs = [ttyd] + [os.path.join(d, f) for f in ("term", "term-page.js", "term-icon.png")]
+if os.path.exists(page) and os.path.getmtime(page) >= max(map(os.path.getmtime, srcs)):
+    sys.exit()
+tmp = tempfile.mkdtemp()
+sock = os.path.join(tmp, "ttyd.sock")
+p = subprocess.Popen([ttyd, "-i", sock, "true"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+try:
+    for _ in range(100):
+        if os.path.exists(sock):
+            break
+        time.sleep(0.05)
+    c = socket.socket(socket.AF_UNIX)
+    c.connect(sock)
+    c.sendall(b"GET / HTTP/1.0\r\nHost: localhost\r\n\r\n")
+    resp = b""
+    while chunk := c.recv(1 << 16):
+        resp += chunk
+finally:
+    p.terminate()
+    shutil.rmtree(tmp)
+html = resp.split(b"\r\n\r\n", 1)[1].decode()
+icon = base64.b64encode(open(os.path.join(d, "term-icon.png"), "rb").read()).decode()
+html = re.sub(r'<link rel="icon"[^>]*>', lambda _: f'<link rel="icon" type="image/png" href="data:image/png;base64,{icon}">', html, count=1)
+html = re.sub(r"<title>[^<]*</title>", lambda _: f"<title>{socket.gethostname().split('.')[0]}</title>", html, count=1)
+i = html.rindex("</body>")
+html = html[:i] + "<script>" + open(os.path.join(d, "term-page.js")).read() + "</script>" + html[i:]
+os.makedirs(os.path.dirname(page), exist_ok=True)
+with open(page + ".tmp", "w") as f:
+    f.write(html)
+os.replace(page + ".tmp", page)
+EOF
+
+cd "$HOME"
+exec ttyd -i "$lo" -p "$port" -b "/$secret" -W -a -O -I "$page" \
+  -t fontSize=12 -t "titleFixed=$(hostname -s)" \
+  -t "fontFamily=Menlo, 'DejaVu Sans Mono', '3270 Nerd Font Mono', 'Symbols Nerd Font Mono', monospace" \
+  -t cursorStyle=bar -t cursorBlink=true -t scrollback=100000 -t disableLeaveAlert=true \
+  python3 "$dir/termbridge"

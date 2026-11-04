@@ -216,6 +216,17 @@ vim.cmd("syntax enable")
 vim.cmd("filetype plugin indent on")
 vim.opt.mouse = 'a'
 vim.opt.clipboard:append { 'unnamed', 'unnamedplus' }
+
+-- no display means a remote session: the clipboard goes through the terminal (OSC 52), which
+-- termbridge hands to the clipboard of the machine you're sitting at
+if vim.fn.has('mac') == 0 and not (vim.env.DISPLAY or vim.env.WAYLAND_DISPLAY) then
+  local osc52 = require('vim.ui.clipboard.osc52')
+  vim.g.clipboard = {
+    name = 'OSC 52',
+    copy = { ['+'] = osc52.copy('+'), ['*'] = osc52.copy('*') },
+    paste = { ['+'] = osc52.paste('+'), ['*'] = osc52.paste('*') },
+  }
+end
 vim.opt.tabstop = 4
 vim.opt.shiftwidth = 4
 vim.opt.expandtab = true
@@ -394,7 +405,7 @@ vim.api.nvim_create_autocmd("FileType", {
   pattern = "markdown",
   callback = function(ev)
     vim.keymap.set("n", "p", function()
-      local info = vim.fn.system({ "osascript", "-e", "clipboard info" })
+      local info = vim.fn.has('mac') == 1 and vim.fn.system({ "osascript", "-e", "clipboard info" }) or ''
       if info:match("PNGf") or info:match("TIFF") then
         vim.cmd("PasteImage")
       else
@@ -639,34 +650,89 @@ augroup vimtex_follow_alt_main
   autocmd BufEnter *.tex call VimtexFollowAltMain()
 augroup END
 ]])
-if vim.fn.has('mac') == 1 then
-  vim.g.vimtex_view_method = 'general'
-  vim.g.vimtex_view_general_viewer = 'true'
-  vim.api.nvim_create_autocmd('User', {
-    pattern = 'VimtexEventView',
-    callback = function() vim.cmd('Open ' .. vim.fn.eval('b:vimtex.viewer.out()')) end,
-  })
-else
-  vim.g.vimtex_view_method = 'zathura_simple'
-  vim.api.nvim_create_autocmd('FileType', {
-    pattern = 'tex',
-    callback = function(ev)
-      vim.keymap.set('n', '<2-LeftMouse>', '<cmd>VimtexView<CR>', { buffer = ev.buf })
-    end,
-  })
-end
+vim.g.vimtex_view_method = 'general'
+vim.g.vimtex_view_general_viewer = 'true'
+vim.api.nvim_create_autocmd('User', {
+  pattern = 'VimtexEventView',
+  callback = function() vim.cmd('Open ' .. vim.fn.eval('b:vimtex.viewer.out()')) end,
+})
 
 -- CUSTOM COMMANDS
+-- the file itself goes through the terminal, so it opens in the browser of the machine you're
+-- sitting at however many ssh hops away nvim is (termbridge on that machine receives it)
+local function term_send(seq)
+  if vim.env.TMUX then seq = '\027Ptmux;' .. (seq:gsub('\027', '\027\027')) .. '\027\\' end
+  if vim.api.nvim_ui_send then
+    vim.api.nvim_ui_send(seq)
+  else
+    vim.api.nvim_chan_send(2, seq)
+  end
+end
+
+-- transfers go one at a time: the escape codes carry no id, so interleaved chunks would mix files.
+-- termbridge acks every chunk; keeping a few in flight stops nvim queueing a whole video in memory
+-- faster than ssh drains it, and no ack at all means nothing on the other end is listening
+local open_queue = {}
+local function open_next()
+  local path = open_queue[1]
+  if not path then return end
+  local f = io.open(path, 'rb')
+  local size = f:seek('end')
+  f:seek('set')
+  if size > 20 * 1024 * 1024 then
+    vim.notify(string.format('Open: sending %.0f MB', size / 1024 / 1024))
+  end
+  local inflight, done, timer = 0, false, vim.uv.new_timer()
+  local ack
+  local function finish(msg)
+    vim.api.nvim_del_autocmd(ack)
+    timer:stop()
+    timer:close()
+    f:close()
+    table.remove(open_queue, 1)
+    if msg then
+      open_queue = {}
+      return vim.notify(msg, vim.log.levels.ERROR)
+    end
+    vim.schedule(open_next)
+  end
+  local function pump()
+    while not done and inflight < 4 do
+      local data = f:read(768 * 1024)
+      if not data then
+        done = true
+        term_send('\027]1337;FileEnd\007')
+        break
+      end
+      inflight = inflight + 1
+      term_send('\027]1337;FilePart=' .. vim.base64.encode(data) .. '\007')
+    end
+    if done and inflight == 0 then return finish() end
+    timer:start(5000, 0, vim.schedule_wrap(function()
+      finish('Open: no reply from termbridge (is this terminal running under it?)')
+    end))
+  end
+  ack = vim.api.nvim_create_autocmd('TermResponse', {
+    callback = function(ev)
+      local seq = type(ev.data) == 'table' and ev.data.sequence or ev.data
+      if seq and seq:find('1337;FileAck', 1, true) then
+        inflight = inflight - 1
+        pump()
+      end
+    end,
+  })
+  term_send('\027]1337;MultipartFile=name=' .. vim.base64.encode(vim.fn.fnamemodify(path, ':t'))
+    .. ';size=' .. size .. ';inline=0\007')
+  pump()
+end
+
 vim.api.nvim_create_user_command('Open', function(opts)
   local path = vim.fn.fnamemodify(opts.args ~= '' and opts.args or vim.fn.expand('%:p'), ':p')
-  if vim.fn.has('mac') == 1 then
-    local url = 'file://' .. path
-    local b64 = vim.fn.system("printf '%s' " .. vim.fn.shellescape(url) .. " | base64 | tr -d '\\n'")
-    io.write("\027]1337;OpenURL=:" .. b64 .. "\027\\")
-    io.flush()
-  else
-    vim.ui.open(path)
+  if vim.fn.filereadable(path) == 0 then
+    return vim.notify('Open: cannot read ' .. path, vim.log.levels.ERROR)
   end
+  table.insert(open_queue, path)
+  if #open_queue == 1 then open_next() end
 end, { nargs = '?', complete = 'file' })
 
 

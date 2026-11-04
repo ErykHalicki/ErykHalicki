@@ -132,3 +132,32 @@ My Library → Export Library… → Better BibTeX, tick "Keep updated", save to
 | `prose_stats.lua` | lualine word count + reading time for md/tex/txt; tex uses `texcount` and includes `\input` files (loaded by `init.lua`) |
 | `walle-ascii-art.txt` | neofetch ascii art |
 | `clang-format` | C/C++ formatting rules |
+
+## Browser terminal (ttyd + termbridge)
+
+A terminal in a Brave tab, so `:Open` in nvim shows PDFs in the Google Scholar reader. ttyd runs
+on the machine you sit at, on localhost only, and every session runs under `termbridge`. nvim sends
+`:Open`ed files and OSC 52 clipboard traffic through the terminal, so they land on that machine
+however many ssh hops away nvim is; remote hosts need only this init.lua. Files go to
+`~/Downloads/term` under unique names.
+
+Install ttyd (`brew install ttyd`; on Linux grab the static binary into `~/.local/bin` from
+https://github.com/tsl0922/ttyd/releases), then start it at login:
+
+```bash
+# macOS
+cp ~/Documents/ErykHalicki/term.plist ~/Library/LaunchAgents/com.erykhalicki.term.plist
+launchctl load ~/Library/LaunchAgents/com.erykhalicki.term.plist
+
+# Ubuntu
+systemctl --user link ~/Documents/ErykHalicki/term.service
+systemctl --user enable --now term.service
+```
+
+`term` serves ttyd's page with `term-page.js` added, which supplies what ttyd's options can't: light/dark
+colours that follow the system, the iTerm2 profile's key mappings, a visual bell and the tab icon.
+
+`~/Documents/ErykHalicki/term url` prints the address to bookmark. Add `?arg=ssh&arg=<host>` for a
+tab that opens straight on another machine. Don't open another machine's ttyd remotely: ssh from
+your local one, so files open in front of you. In Brave, enable "Allow access to file URLs" for the
+Scholar PDF Reader extension.
