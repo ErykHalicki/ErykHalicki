@@ -272,6 +272,7 @@ def direct(argv):
 SESSIONS = os.path.expanduser("~/.cache/term/sessions")
 DETACHED_TTL = 7 * 24 * 3600
 REPLAY = 512 * 1024
+BACKLOG = 1024 * 1024
 MODES = re.compile(rb"\x1b\[\?([0-9;]+)([hl])")
 
 
@@ -295,18 +296,27 @@ def serve(sock_path, srv, argv):
 
     save()
     bridge = Bridge(master)
-    client, inbuf, replay, modes, fresh = None, b"", bytearray(), {}, False
+    client, inbuf, outq, replay, modes, fresh = None, b"", bytearray(), bytearray(), {}, False
     detached_at, redraw = time.monotonic(), None
 
     def set_size(ws):
         fcntl.ioctl(master, termios.TIOCSWINSZ, ws)
+
+    def drop(now):
+        nonlocal client, detached_at
+        client.close()
+        client, detached_at = None, now
+        save(attached=False, detached=time.time())
 
     try:
         while True:
             now = time.monotonic()
             waits = [t for t in (redraw and redraw[0], None if client else detached_at + DETACHED_TTL) if t]
             timeout = max(0, min(waits) - now) if waits else None
-            ready = select.select([srv, master] + ([client] if client else []), [], [], timeout)[0]
+            # the client socket never blocks, so a tab whose connection stalls can't stop a new one
+            # attaching; while its backlog is full the shell's output waits in the pty, as in any terminal
+            rlist = [srv] + ([master] if not client or len(outq) < BACKLOG else []) + ([client] if client else [])
+            ready, writable, _ = select.select(rlist, [client] if client and outq else [], [], timeout)
             now = time.monotonic()
             if redraw and now >= redraw[0]:
                 set_size(redraw[1])
@@ -318,12 +328,18 @@ def serve(sock_path, srv, argv):
                 if client:
                     client.close()
                 client, inbuf, fresh = srv.accept()[0], b"", True
+                client.setblocking(False)
                 save(attached=True)
-                restore = b"".join(b"\x1b[?" + n + v for n, v in modes.items())
+                outq = bytearray(replay) + b"".join(b"\x1b[?" + n + v for n, v in modes.items())
+                continue
+            if client in writable:
                 try:
-                    client.sendall(bytes(replay) + restore)
+                    del outq[:client.send(outq)]
+                except BlockingIOError:
+                    pass
                 except OSError:
-                    client = None
+                    drop(now)
+                    continue
             if master in ready:
                 try:
                     data = os.read(master, 65536)
@@ -340,18 +356,16 @@ def serve(sock_path, srv, argv):
                     for n in m.group(1).split(b";"):
                         modes[n] = m.group(2)
                 if client:
-                    try:
-                        client.sendall(out)
-                    except OSError:
-                        client.close()
-                        client, detached_at = None, now
-                        save(attached=False, detached=time.time())
+                    outq += out
             if client and client in ready:
-                data = client.recv(65536)
+                try:
+                    data = client.recv(65536)
+                except BlockingIOError:
+                    continue
+                except OSError:
+                    data = b""
                 if not data:
-                    client.close()
-                    client, detached_at = None, now
-                    save(attached=False, detached=time.time())
+                    drop(now)
                     continue
                 inbuf += data
                 while len(inbuf) >= 5 and len(inbuf) >= 5 + int.from_bytes(inbuf[1:5], "big"):
