@@ -156,12 +156,15 @@ systemctl --user enable --now term.service
 
 Each tab's shell survives dropped connections (closing the lid makes Brave drop them) and reloads:
 `term-tab.js` gives the tab an id and termbridge keeps that tab's shell in a background session,
-replaying recent output on reattach. A session left detached for 12 hours is closed.
+replaying recent output on reattach. A session left detached for a week is closed. `term sessions`
+lists them with a link that reopens each in a new tab (so closed tabs can be recovered), and
+`term kill <id>` ends one.
 
 `term` serves ttyd's page with `term-page.js` added, which supplies what ttyd's options can't: light/dark
 colours that follow the system, the iTerm2 profile's key mappings, a visual bell and the tab icon.
 
-`~/Documents/ErykHalicki/term url` prints the address to bookmark. Add `?arg=ssh&arg=<host>` for a
+Put `term` on your PATH with `ln -s ~/Documents/ErykHalicki/term ~/.local/bin/term`; `term url` prints
+the address to bookmark. Add `?arg=ssh&arg=<host>` for a
 tab that opens straight on another machine. Don't open another machine's ttyd remotely: ssh from
 your local one, so files open in front of you. In Brave, enable "Allow access to file URLs" for the
 Scholar PDF Reader extension.

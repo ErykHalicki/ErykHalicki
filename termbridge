@@ -13,6 +13,7 @@ ttyd runs this on the machine you sit at, so files and the clipboard land where 
 import base64
 import fcntl
 import hashlib
+import json
 import os
 import pty
 import pwd
@@ -269,7 +270,7 @@ def direct(argv):
 # background server on a unix socket and each connection is just a client that attaches to it; a
 # reconnecting tab gets its shell back, with recent output replayed and terminal modes restored.
 SESSIONS = os.path.expanduser("~/.cache/term/sessions")
-DETACHED_TTL = 12 * 3600
+DETACHED_TTL = 7 * 24 * 3600
 REPLAY = 512 * 1024
 MODES = re.compile(rb"\x1b\[\?([0-9;]+)([hl])")
 
@@ -279,7 +280,20 @@ def frame(kind, payload):
 
 
 def serve(sock_path, srv, argv):
+    tab = os.path.basename(sock_path)[:-5]
+    os.environ["TERMBRIDGE_TAB"] = tab
     pid, master = spawn(argv)
+    meta_path = sock_path[:-5] + ".json"
+    meta = {"pid": pid, "started": time.time(), "attached": False, "detached": time.time()}
+
+    def save(**changes):
+        # read by `term sessions`
+        meta.update(changes)
+        with open(meta_path + ".tmp", "w") as f:
+            json.dump(meta, f)
+        os.replace(meta_path + ".tmp", meta_path)
+
+    save()
     bridge = Bridge(master)
     client, inbuf, replay, modes, fresh = None, b"", bytearray(), {}, False
     detached_at, redraw = time.monotonic(), None
@@ -304,6 +318,7 @@ def serve(sock_path, srv, argv):
                 if client:
                     client.close()
                 client, inbuf, fresh = srv.accept()[0], b"", True
+                save(attached=True)
                 restore = b"".join(b"\x1b[?" + n + v for n, v in modes.items())
                 try:
                     client.sendall(bytes(replay) + restore)
@@ -330,11 +345,13 @@ def serve(sock_path, srv, argv):
                     except OSError:
                         client.close()
                         client, detached_at = None, now
+                        save(attached=False, detached=time.time())
             if client and client in ready:
                 data = client.recv(65536)
                 if not data:
                     client.close()
                     client, detached_at = None, now
+                    save(attached=False, detached=time.time())
                     continue
                 inbuf += data
                 while len(inbuf) >= 5 and len(inbuf) >= 5 + int.from_bytes(inbuf[1:5], "big"):
@@ -353,10 +370,11 @@ def serve(sock_path, srv, argv):
                     elif kind == b"w":
                         set_size(payload)
     finally:
-        try:
-            os.unlink(sock_path)
-        except OSError:
-            pass
+        for p in (sock_path, meta_path):
+            try:
+                os.unlink(p)
+            except OSError:
+                pass
         if client:
             client.close()
 
