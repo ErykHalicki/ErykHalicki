@@ -27,7 +27,9 @@ alias work="nvim -c Start"
 unalias neofetch 2>/dev/null
 neofetch() {
     local art="$HOME/Documents/ErykHalicki/walle-ascii-art.txt"
-    if [ -f "$art" ]; then
+    if [ $# -eq 0 ] && [ -z "$NVIM" ] && [ -f "$HOME/sockeye_swim.py" ] && (( RANDOM % 2 )); then
+        python3 "$HOME/sockeye_swim.py" --fetch --color
+    elif [ -f "$art" ]; then
         command neofetch --ascii "$art" --ascii_colors 1 4 3 2 5 6 "$@"
     else
         command neofetch "$@"
