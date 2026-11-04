@@ -660,7 +660,13 @@ end
 vim.api.nvim_create_user_command('Open', function(opts)
   local path = vim.fn.fnamemodify(opts.args ~= '' and opts.args or vim.fn.expand('%:p'), ':p')
   if vim.fn.has('mac') == 1 then
-    local url = 'file://' .. path
+    local target = path
+    if vim.fn.fnamemodify(path, ':e'):lower() == 'pdf' then
+      -- iTerm2's built-in PDF view snaps pinch-zoom to actual size; wrap it in a pdf.js page instead
+      local out = vim.fn.system({ vim.fn.expand('~/.local/share/pdfview/pdfview'), path })
+      if vim.v.shell_error == 0 then target = vim.trim(out) end
+    end
+    local url = target:match('^https?://') and target or ('file://' .. target)
     local b64 = vim.fn.system("printf '%s' " .. vim.fn.shellescape(url) .. " | base64 | tr -d '\\n'")
     io.write("\027]1337;OpenURL=:" .. b64 .. "\027\\")
     io.flush()
