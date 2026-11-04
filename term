@@ -1,6 +1,7 @@
 #!/bin/sh
 # Browser terminal for this machine: ttyd on localhost with every session under termbridge.
-#   term        run it (the login service does this)
+#   term              run it (the login service does this)
+#   term help         show this
 #   term url          print the address to bookmark; add ?arg=ssh&arg=<host> for a tab that opens on <host>
 #   term sessions     list the shells kept for tabs, with a link that reopens each in a new tab
 #   term kill <id>    end one of them
@@ -19,6 +20,10 @@ fi
 secret=$(cat "$secret_file")
 url="http://localhost:$port/$secret/"
 case $1 in
+help|-h|--help)
+  sed -n '2,/^set -e/p' "$0" | sed '$d; s/^# \{0,1\}//'
+  exit ;;
+'') ;;
 url)
   echo "$url"
   exit ;;
@@ -72,6 +77,10 @@ for i in older:
     print(f"    {url}?attach={i}")
 EOF
   ;;
+*)
+  echo "term: unknown command '$1'" >&2
+  sed -n '2,/^set -e/p' "$0" | sed '$d; s/^# \{0,1\}//' >&2
+  exit 1 ;;
 esac
 case $(uname) in Darwin) lo=lo0 ;; *) lo=lo ;; esac
 
