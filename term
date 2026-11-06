@@ -5,6 +5,7 @@
 #   term url          print the address to bookmark; add ?arg=ssh&arg=<host> for a tab that opens on <host>
 #   term sessions     list the shells kept for tabs, with a link that reopens each in a new tab
 #   term kill <id>    end one of them
+#   term prune        end every session detached for 24 hours or more
 # ttyd only answers under a random secret path, so other web pages can't guess their way to a shell.
 set -e
 dir=$(dirname "$(readlink -f "$0")")
@@ -27,7 +28,7 @@ help|-h|--help)
 url)
   echo "$url"
   exit ;;
-sessions|kill)
+sessions|kill|prune)
   exec python3 - "$url" "$@" <<'EOF'
 import json, os, signal, subprocess, sys, time
 url, cmd, *rest = sys.argv[1:]
@@ -60,6 +61,14 @@ if cmd == "kill":
         sys.exit(f"term kill: {'no' if not ids else 'more than one'} session matches {rest[:1]}")
     os.kill(dict(sessions)[ids[0]]["pid"], signal.SIGHUP)
     sys.exit(f"ended {ids[0]}")
+if cmd == "prune":
+    stale = [(i, m) for i, m in sessions if not m["attached"] and time.time() - m["detached"] >= 86400]
+    for i, m in stale:
+        os.kill(m["pid"], signal.SIGHUP)
+        print(f"ended {i}  detached {ago(m['detached'])}")
+    if not stale:
+        print("no sessions detached 24h+")
+    sys.exit()
 here = os.environ.get("TERMBRIDGE_TAB")
 known = {i for i, _ in sessions}
 older = [f[:-5] for f in sorted(os.listdir(d)) if f.endswith(".sock") and f[:-5] not in known] if os.path.isdir(d) else []
