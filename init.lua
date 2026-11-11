@@ -17,6 +17,7 @@ vim.cmd [[
   Plug 'echasnovski/mini.icons'
   Plug 'MeanderingProgrammer/render-markdown.nvim'
   Plug 'HakonHarnes/img-clip.nvim'
+  Plug '3rd/image.nvim'
   Plug '~/notes/nvim'
   Plug 'lervag/vimtex'
   Plug 'micangl/cmp-vimtex'
@@ -386,6 +387,80 @@ null_ls.setup({
 
 require('render-markdown').setup({})
 require('render-markdown').enable()
+
+-- inline images in markdown via sixel (ttyd runs with enableSixel); needs ImageMagick on this machine
+do
+  local ok, image = pcall(require, 'image')
+  if ok and vim.fn.executable('magick') == 1 then
+    -- image.nvim reads getwininfo().leftcol, which Neovim <= 0.10 doesn't provide; fill it from winsaveview
+    local getwininfo = vim.fn.getwininfo
+    vim.fn.getwininfo = function(...)
+      local infos = getwininfo(...)
+      for _, info in ipairs(infos) do
+        if info.leftcol == nil then
+          info.leftcol = vim.api.nvim_win_call(info.winid, function()
+            return vim.fn.winsaveview().leftcol
+          end)
+        end
+      end
+      return infos
+    end
+    -- ttyd's pty reports no pixel size, so image.nvim assumes 8x16px cells; use the browser's real cell size instead
+    local term = require('image.utils').term
+    local get_size = term.get_size
+    vim.g.image_cell_px = vim.g.image_cell_px or { 7, 14 }
+    term.get_size = function()
+      local size = get_size()
+      if not size then return size end
+      local w, h = vim.g.image_cell_px[1], vim.g.image_cell_px[2]
+      return vim.tbl_extend('force', size, {
+        cell_width = w,
+        cell_height = h,
+        screen_x = size.screen_cols * w,
+        screen_y = size.screen_rows * h,
+      })
+    end
+    vim.api.nvim_create_user_command('ImageCell', function(opts)
+      local w, h = opts.fargs[1], opts.fargs[2]
+      if not (tonumber(w) and tonumber(h)) then
+        return vim.notify('cell px: ' .. table.concat(vim.g.image_cell_px, 'x') .. '  (usage: :ImageCell W H)')
+      end
+      vim.g.image_cell_px = { tonumber(w), tonumber(h) }
+      require('image').clear()
+      vim.cmd('edit')
+    end, { nargs = '*' })
+    -- image.nvim re-renders on the next tick after every scroll/edit; wait for a pause instead (trailing edge, per target)
+    local scheduler = require('image/utils/render_scheduler')
+    local timers = {}
+    local clear_scheduler = scheduler.clear
+    scheduler.schedule = function(key, callback)
+      local timer = timers[key] or vim.uv.new_timer()
+      timers[key] = timer
+      timer:stop()
+      timer:start(vim.g.image_render_debounce_ms or 150, 0, vim.schedule_wrap(callback))
+    end
+    scheduler.clear = function()
+      for _, timer in pairs(timers) do timer:stop() end
+      clear_scheduler()
+    end
+    image.setup({
+      backend = 'sixel',
+      processor = 'magick_cli',
+      integrations = {
+        markdown = {
+          enabled = true,
+          only_render_image_at_cursor = false,
+          download_remote_images = false,
+          clear_in_insert_mode = true,
+          filetypes = { 'markdown' },
+        },
+      },
+      max_width_window_percentage = 60,
+      max_height_window_percentage = 50,
+      window_overlap_clear_enabled = true,
+    })
+  end
+end
 
 -- notes vault: Obsidian-style image paste + `notes` CLI wrapper
 

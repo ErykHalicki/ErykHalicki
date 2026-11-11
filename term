@@ -142,4 +142,5 @@ exec ttyd -i "$lo" -p "$port" -b "/$secret" -W -a -O -I "$page" \
   -t fontSize=12 -t "titleFixed=$(hostname -s)" \
   -t "fontFamily=Menlo, 'DejaVu Sans Mono', TermSymbols, monospace" \
   -t cursorStyle=bar -t cursorBlink=true -t scrollback=100000 -t disableLeaveAlert=true \
+  -t enableSixel=true \
   python3 "$dir/termbridge"
