@@ -354,7 +354,7 @@ do
 end
 
 require'nvim-treesitter.configs'.setup {
-  ensure_installed = { "cpp", "python", "markdown", "markdown_inline" },
+  ensure_installed = { "cpp", "python", "markdown", "markdown_inline", "latex" },
   highlight = {
     enable = true,
     additional_vim_regex_highlighting = false,
@@ -479,7 +479,7 @@ end
 
 cmp.setup({
   -- wait for a pause in typing/deleting before querying sources (defaults 60/30)
-  performance = { debounce = 150, throttle = 80 },
+  performance = { debounce = 350, throttle = 200, fetching_timeout = 200 },
 
   mapping = {
     ['<Tab>'] = function(fallback)
@@ -529,6 +529,10 @@ do
       start = { line = ctx.cursor.line, character = params.offset - 1 },
       ['end'] = { line = ctx.cursor.line, character = ctx.cursor.col - 1 + #rest },
     }
+    local word = (ctx.cursor_before_line:match('[%w_\128-\255]*$') or '') .. rest
+    if word == '' or vim.fn.spellbadword(word)[1] == '' then
+      return callback({ items = {}, isIncomplete = false })
+    end
     local word_ctx = setmetatable({ cursor_before_line = ctx.cursor_before_line .. rest }, { __index = ctx })
     local word_params = setmetatable({ context = word_ctx }, { __index = params })
     cmp_spell.complete(self, word_params, function(response)
@@ -650,6 +654,10 @@ augroup vimtex_follow_alt_main
   autocmd BufEnter *.tex call VimtexFollowAltMain()
 augroup END
 ]])
+-- vimtex's matchparen reparses delimiters on every cursor move; treesitter replaces its regex syntax
+vim.g.vimtex_matchparen_enabled = 0
+vim.g.vimtex_syntax_enabled = 0
+vim.g.vimtex_quickfix_mode = 0
 vim.g.vimtex_view_method = 'general'
 vim.g.vimtex_view_general_viewer = 'true'
 vim.api.nvim_create_autocmd('User', {

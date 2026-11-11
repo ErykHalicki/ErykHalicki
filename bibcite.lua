@@ -245,8 +245,18 @@ end
 
 -- earliest source wins when the same key appears in several files; `origin` maps each
 -- external entry to the file it came from
+local SOURCES_TTL_MS = 5000
+local sources_cache = {}
+
 function M.entries_for(file)
-  local bibs, external, target = M.sources_for(file)
+  local now = vim.uv.now()
+  local c = sources_cache[file]
+  if not c or now - c.at > SOURCES_TTL_MS then
+    c = { at = now }
+    c.bibs, c.external, c.target = M.sources_for(file)
+    sources_cache[file] = c
+  end
+  local bibs, external, target = c.bibs, c.external, c.target
   local seen, entries, origin = {}, {}, {}
   for _, path in ipairs(bibs) do
     for _, e in ipairs(load_bib(path)) do
