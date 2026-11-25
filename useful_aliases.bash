@@ -19,9 +19,13 @@ alias zima='ssh zima; printf "\e[?1000l\e[?1006l\e[?1015l"'
 # --- editor ---
 alias nvim-clean="command nvim"
 nvim() {
+  if [ -n "$NVIM" ]; then
+    echo "nvim: already inside an nvim terminal, not starting a nested one (use nvim-clean to force it)" >&2
+    return 1
+  fi
   command nvim -c Start "$@"
 }
-alias work="nvim -c Start"
+alias work="nvim"
 
 # --- neofetch with custom ascii art (falls back to plain neofetch) ---
 unalias neofetch 2>/dev/null
