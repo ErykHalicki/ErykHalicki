@@ -634,8 +634,9 @@ cmp.setup.filetype('tex', {
   ),
 })
 
--- on a cursor move in insert mode (not one caused by typing), re-run spell completion
--- for the word under the cursor; bibcite goes first so \cite{...} still gets keys
+-- on a cursor move in insert mode (not one caused by typing), close the menu and, once the
+-- cursor rests, re-run spell completion for the word under it; bibcite goes first so
+-- \cite{...} still gets keys. Running it on every arrow press made held arrows crawl
 local recheck_sources = cmp.config.sources(
   { { name = 'bibcite' } },
   { { name = 'spell_word', option = { keep_all_entries = true } } }
@@ -650,6 +651,7 @@ vim.api.nvim_create_autocmd('FileType', {
     vim.opt_local.spelllang = 'en_ca'
 
     local last_tick = vim.b[args.buf].changedtick
+    local timer = vim.uv.new_timer()
     vim.api.nvim_clear_autocmds({ group = recheck_group, buffer = args.buf })
     vim.api.nvim_create_autocmd('CursorMovedI', {
       group = recheck_group,
@@ -660,15 +662,27 @@ vim.api.nvim_create_autocmd('FileType', {
           last_tick = tick
           return
         end
-        local col = vim.api.nvim_win_get_cursor(0)[2]
-        local line = vim.api.nvim_get_current_line()
-        local word_char = '[%w_\128-\255]'
-        if line:sub(col, col):match(word_char) or line:sub(col + 1, col + 1):match(word_char) then
-          cmp.complete({ config = { sources = recheck_sources } })
-        else
-          cmp.close()
-        end
+        timer:stop()
+        if cmp.visible() then cmp.close() end
+        local pos = vim.api.nvim_win_get_cursor(0)
+        timer:start(300, 0, vim.schedule_wrap(function()
+          if vim.api.nvim_get_current_buf() ~= args.buf or vim.fn.mode() ~= 'i' then return end
+          if vim.b[args.buf].changedtick ~= last_tick then return end
+          local now = vim.api.nvim_win_get_cursor(0)
+          if now[1] ~= pos[1] or now[2] ~= pos[2] then return end
+          local col = now[2]
+          local line = vim.api.nvim_get_current_line()
+          local word_char = '[%w_\128-\255]'
+          if line:sub(col, col):match(word_char) or line:sub(col + 1, col + 1):match(word_char) then
+            cmp.complete({ config = { sources = recheck_sources } })
+          end
+        end))
       end,
+    })
+    vim.api.nvim_create_autocmd('InsertLeave', {
+      group = recheck_group,
+      buffer = args.buf,
+      callback = function() timer:stop() end,
     })
   end,
 })
