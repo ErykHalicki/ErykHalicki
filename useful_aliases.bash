@@ -6,9 +6,11 @@
 
 # --- navigation ---
 alias s=source
-alias school="cd ~/Documents/School/"
-alias honours="cd ~/Documents/School/UBC/year4/thesis"
-alias thesis="cd ~/Documents/School/UBC/year4/thesis"
+_first_dir() { for d; do [ -d "$d" ] && { printf '%s\n' "$d"; return; }; done; }
+alias school='cd "$(_first_dir ~/School ~/Documents/School)"'
+alias thesis='cd "$(_first_dir ~/School/thesis ~/Documents/School/UBC/year4/thesis)"'
+alias honours=thesis
+alias capstone='cd "$(_first_dir ~/School/capstone ~/Documents/School/UBC/year4/capstone)"'
 alias proj="cd ~/Documents/projects"
 alias projects="cd ~/Documents/projects"
 

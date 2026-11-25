@@ -194,12 +194,17 @@ end, { nargs = "?", complete = "dir" })
 
 vim.api.nvim_create_autocmd("VimEnter", {
   pattern = "*",
-  command = "Neotree show"
+  callback = function()
+    if not vim.g.start_in_progress then vim.cmd("Neotree show") end
+  end,
 })
 
 vim.api.nvim_create_autocmd("TabNew", {
   pattern = "*",
-  command = "Neotree show"
+  callback = function()
+    -- :Start opens its own trees one at a time (see wait_for_tree)
+    if not vim.g.start_in_progress then vim.cmd("Neotree show") end
+  end,
 })
 
 -- neo-tree's file watcher only redraws trees in the current tab and just marks the rest dirty,
@@ -887,40 +892,67 @@ vim.api.nvim_create_user_command("Claude", function()
   vim.fn.chansend(vim.b.terminal_job_id, "claude\n")
 end, {})
 
--- startup command
+-- neo-tree debounces every filesystem navigate under one global key, and a finished show hops focus
+-- back to the window it started in, so a second show fired before the first lands gets dropped or
+-- steals focus later. Block until the current tab's tree has rendered and the debounce window passed.
+local function wait_for_tree()
+  local manager = require("neo-tree.sources.manager")
+  vim.wait(3000, function()
+    local state = manager.get_state("filesystem")
+    return state._ready and state.winid and vim.api.nvim_win_is_valid(state.winid)
+  end, 10)
+  vim.wait(150)
+end
+
+-- startup command: tabs end up as Claude | TR | Editor | lazygit, with Claude focused
 vim.api.nvim_create_user_command("Start", function()
-  -- Tab 1: editor with Neo-tree
+  vim.g.start_in_progress = true
+
+  -- the editor is built in the first tab, where `nvim <file>` already loaded the file
+  local editor_tab = vim.api.nvim_get_current_tabpage()
   vim.cmd("silent! TabooRename Editor")
 
-  -- Tab 2: empty terminal "TR", no Neo-tree
   vim.cmd("silent! tabnew")
-  vim.cmd("silent! Neotree close")
   vim.cmd("silent! terminal")
   vim.cmd("silent! TabooRename TR")
+  local tr_tab = vim.api.nvim_get_current_tabpage()
 
-  -- Tab 3: claude, no Neo-tree
   vim.cmd("silent! tabnew")
-  vim.cmd("silent! Neotree close")
   vim.cmd("silent! terminal")
   vim.cmd("silent! TabooRename Claude")
   vim.fn.chansend(vim.b.terminal_job_id, "claude\n")
+  local claude_tab = vim.api.nvim_get_current_tabpage()
+  local claude_win = vim.api.nvim_get_current_win()
 
-  -- Tab 4: lazygit, no Neo-tree
   vim.cmd("silent! tabnew")
-  vim.cmd("silent! Neotree close")
   vim.cmd("silent! terminal")
   vim.cmd("silent! TabooRename lazygit")
   vim.fn.chansend(vim.b.terminal_job_id, "lazygit\n")
 
-  vim.cmd("silent! tabfirst")
+  vim.api.nvim_set_current_tabpage(claude_tab)
+  vim.cmd("silent! tabmove 0")
+  vim.api.nvim_set_current_tabpage(tr_tab)
+  vim.cmd("silent! tabmove 1")
+  vim.api.nvim_set_current_tabpage(editor_tab)
   vim.cmd("redraw")
 
-  -- `-c Start` runs before VimEnter, so Neo-tree isn't open on tab 1 yet.
-  -- Defer the notes panel until the event loop so it docks under Neo-tree.
+  -- `-c Start` runs before VimEnter; lay out the trees once startup is done
   vim.schedule(function()
-    vim.cmd("silent! tabfirst")
+    vim.api.nvim_set_current_tabpage(editor_tab)
+    pcall(vim.cmd, "Neotree show")
+    wait_for_tree()
     pcall(vim.cmd, "NotesTree")
     pcall(vim.cmd, "wincmd l")
+
+    vim.api.nvim_set_current_tabpage(claude_tab)
+    if vim.api.nvim_win_is_valid(claude_win) then
+      vim.api.nvim_set_current_win(claude_win)
+      pcall(vim.cmd, "Tree")
+      wait_for_tree()
+      vim.api.nvim_set_current_win(claude_win)
+      vim.cmd("startinsert")
+    end
+    vim.g.start_in_progress = false
   end)
 end, {})
 
