@@ -120,7 +120,8 @@ try:
         resp += chunk
 finally:
     p.terminate()
-    shutil.rmtree(tmp)
+    p.wait()
+    shutil.rmtree(tmp, ignore_errors=True)
 html = resp.split(b"\r\n\r\n", 1)[1].decode()
 icon = base64.b64encode(open(os.path.join(d, "term-icon.png"), "rb").read()).decode()
 html = re.sub(r'<link rel="icon"[^>]*>', lambda _: f'<link rel="icon" type="image/png" href="data:image/png;base64,{icon}">', html, count=1)
