@@ -959,7 +959,13 @@ end, {})
 --close everything command
 vim.api.nvim_create_user_command('Nuke', function()
   vim.cmd('wa')
-  vim.cmd([[silent! bufdo if &buftype == 'terminal' | bd! | endif]])
+  -- not bufdo: deleting a terminal can leave a tab with only a tree, which close_if_last_window
+  -- closes mid-loop, so bufdo stops early and xa hits E948 on the terminals it never reached
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].buftype == 'terminal' then
+      pcall(vim.api.nvim_buf_delete, buf, { force = true })
+    end
+  end
   vim.cmd('silent! Neotree close')
   vim.cmd('xa')
 end, {})
